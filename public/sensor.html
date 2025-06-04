@@ -36,6 +36,14 @@
 <body>
   <h1 id="header">Sensor Data</h1>
 
+  <!-- Smoke Chart -->
+  <div style="display: flex; justify-content: center; margin: 30px 0;">
+    <div class="chart-container">
+      <canvas id="smokeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Filters -->
   <div style="text-align: center; margin: 20px 0;">
     <label>Datums no: <input type="date" id="dateFrom"></label>
     <label style="margin-left: 10px;">līdz: <input type="date" id="dateTo"></label>
@@ -50,6 +58,7 @@
     <button onclick="setRange('all')">Visi dati</button>
   </div>
 
+  <!-- Lower Charts -->
   <div class="chart-row">
     <div class="chart-container">
       <canvas id="temperatureChart"></canvas>
@@ -62,6 +71,7 @@
     </div>
   </div>
 
+  <!-- Data Table -->
   <table>
     <thead>
       <tr>
@@ -103,6 +113,7 @@
       const temperatures = [];
       const humidities = [];
       const batteries = [];
+      const smokes = [];
 
       data.forEach(d => {
         const date = new Date(d.timestamp);
@@ -113,6 +124,7 @@
         temperatures.push(d.temperature ?? null);
         humidities.push(d.humidity ?? null);
         batteries.push(d.supercap_voltage ?? null);
+        smokes.push(d.gas2 ?? null);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -129,9 +141,17 @@
         document.getElementById('dataTable').appendChild(tr);
       });
 
-      drawChart('temperatureChart', 'Temperatūra (°C)', timestamps, temperatures, 'rgba(255,99,132,0.6)');
-      drawChart('humidityChart', 'Mitrums (%)', timestamps, humidities, 'rgba(54,162,235,0.6)');
-      drawChart('batteryChart', 'SuperCap Voltāža (mV)', timestamps, batteries, 'rgba(255,206,86,0.6)');
+      // Reverse all arrays to show oldest on left
+      const reversedTimestamps = [...timestamps].reverse();
+      const reversedTemperatures = [...temperatures].reverse();
+      const reversedHumidities = [...humidities].reverse();
+      const reversedBatteries = [...batteries].reverse();
+      const reversedSmokes = [...smokes].reverse();
+
+      drawChart('smokeChart', 'Smoke (%)', reversedTimestamps, reversedSmokes, 'rgba(100,100,255,0.6)');
+      drawChart('temperatureChart', 'Temperatūra (°C)', reversedTimestamps, reversedTemperatures, 'rgba(255,99,132,0.6)');
+      drawChart('humidityChart', 'Mitrums (%)', reversedTimestamps, reversedHumidities, 'rgba(54,162,235,0.6)');
+      drawChart('batteryChart', 'SuperCap Voltāža (mV)', reversedTimestamps, reversedBatteries, 'rgba(255,206,86,0.6)');
     }
 
     function drawChart(canvasId, label, labels, data, color) {
