@@ -8,54 +8,54 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-const sensorData = {};
+let db;
 
-// ✅ MySQL savienojums
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT
-});
+// ✅ Dinamiska MySQL savienojuma atjaunošana
+function handleDisconnect() {
+  db = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT
+  });
 
-db.connect((err) => {
-  if (err) {
-    console.error('❌ MySQL connection failed:', err);
-  } else {
-    console.log('✅ Connected to MySQL database');
-  }
-});
+  db.connect((err) => {
+    if (err) {
+      console.error('❌ MySQL connection failed:', err);
+      setTimeout(handleDisconnect, 2000); // mēģini vēlreiz pēc 2s
+    } else {
+      console.log('✅ Connected to MySQL database');
+    }
+  });
 
-// ✅ Webhook no TTN ar validāciju
+  db.on('error', (err) => {
+    console.error('⚠️ MySQL error:', err);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      console.warn('🔁 Lost connection. Reconnecting...');
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+}
+
+handleDisconnect();
+
+// ✅ Webhook no TTN
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids?.device_id;
-    const rawPayload = req.body.uplink_message?.decoded_payload;
+    const payload = req.body.uplink_message?.decoded_payload?.decoded;
 
-    // ❗ Pārbaude — ja nav decoded_payload, tad ignorē
-    if (!rawPayload || typeof rawPayload !== 'object') {
-      console.log('⚠️ Ziņa bez decoded_payload. Izlaižam.');
-      return res.status(204).send(); // Bez satura
-    }
-
-    // Atbalsts gan ar, gan bez .decoded ligzdas
-    const payload = rawPayload.decoded ?? rawPayload;
-
-    // ❗ Ja nav būtisko lauku, arī izlaiž
-    if (
-      payload.gas1Prob == null &&
-      payload.gas1 == null &&
-      payload.temperature == null &&
-      payload.superCapVoltage == null
-    ) {
-      console.log('⚠️ decoded_payload nesatur datus. Izlaižam.');
+    if (!payload || typeof payload !== 'object') {
+      console.log('⚠️ No decoded payload. Ignoring.');
       return res.status(204).send();
     }
 
     const timestamp = new Date().toISOString();
+
     const entry = {
-      time: timestamp,
       gas1: payload.gas1Prob ?? payload.gas1,
       gas2: payload.gas2Prob ?? payload.gas2,
       temperature: payload.temperature,
@@ -65,7 +65,15 @@ app.post('/ttn', (req, res) => {
       button_level: payload.buttonLevel
     };
 
-    sensorData[devId] = entry;
+    // Atteikt, ja nav būtisku datu
+    if (
+      entry.gas1 == null &&
+      entry.temperature == null &&
+      entry.supercap_voltage == null
+    ) {
+      console.log('⚠️ Payload missing key values. Skipping insert.');
+      return res.status(204).send();
+    }
 
     const query = `
       INSERT INTO sensor_data
@@ -87,18 +95,18 @@ app.post('/ttn', (req, res) => {
       if (err) {
         console.error('❌ MySQL insert error:', err);
       } else {
-        console.log(`✅ Dati saglabāti no sensor: ${devId}`);
+        console.log(`✅ Data saved from sensor: ${devId}`);
       }
     });
 
     res.send('OK');
   } catch (err) {
-    console.error('❌ Error processing webhook:', err);
+    console.error('❌ Error processing TTN webhook:', err);
     res.status(500).send('Internal error');
   }
 });
 
-// ✅ Galvenajai lapai: pēdējie mērījumi no DB
+// ✅ Jaunākie mērījumi no katra sensora
 app.get('/api/sensors', (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
@@ -136,7 +144,12 @@ app.get('/api/sensors', (req, res) => {
 // ✅ Vēsturiskie dati konkrētam sensoram
 app.get('/api/sensor/:id', (req, res) => {
   const sensorId = req.params.id;
-  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
+  const query = `
+    SELECT * FROM sensor_data
+    WHERE sensor_id = ?
+    ORDER BY timestamp DESC
+    LIMIT 100
+  `;
 
   db.query(query, [sensorId], (err, results) => {
     if (err) {
@@ -148,7 +161,7 @@ app.get('/api/sensor/:id', (req, res) => {
   });
 });
 
-// ✅ Nosūta sensor.html kad atver lapu
+// ✅ Kalpo HTML lapu konkrētam sensoram
 app.get('/sensor/:id', (req, res) => {
   res.sendFile(__dirname + '/public/sensor.html');
 });
