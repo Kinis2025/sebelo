@@ -12,10 +12,41 @@
     .yellow { background-color: #ffffcc; }
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
+    canvas { max-width: 100%; margin-top: 40px; }
+    button { margin: 5px; padding: 6px 12px; }
+    input[type="date"] { padding: 5px; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <h1 id="header">Sensor Data</h1>
+
+  <div style="text-align: center; margin: 20px 0;">
+    <label>Datums no: <input type="date" id="dateFrom"></label>
+    <label style="margin-left: 10px;">līdz: <input type="date" id="dateTo"></label>
+    <button onclick="applyDateFilter()">Filtrēt</button>
+    <button onclick="resetFilter()">Rādīt visu</button>
+  </div>
+
+  <div style="text-align: center; margin: 10px 0;">
+    <button onclick="setRange('day')">Šodien</button>
+    <button onclick="setRange('week')">Nedēļa</button>
+    <button onclick="setRange('month')">Mēnesis</button>
+    <button onclick="setRange('all')">Visi dati</button>
+  </div>
+
+  <div>
+    <canvas id="temperatureChart"></canvas>
+    <canvas id="humidityChart"></canvas>
+    <canvas id="batteryChart"></canvas>
+  </div>
+
+  <div style="text-align: center;">
+    <button onclick="downloadChart('temperatureChart')">Lejupielādēt temperatūras grafiku</button>
+    <button onclick="downloadChart('humidityChart')">Lejupielādēt mitruma grafiku</button>
+    <button onclick="downloadChart('batteryChart')">Lejupielādēt baterijas grafiku</button>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -34,33 +65,136 @@
   </table>
 
   <script>
+    let originalData = [];
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
     document.getElementById("header").textContent = `Sensor: ${sensorId}`;
 
-    fetch(`/api/sensor/${sensorId}`)
-      .then(res => res.json())
-      .then(rows => {
-        const table = document.getElementById('dataTable');
-        rows.forEach(data => {
-          const tr = document.createElement('tr');
-          const timeParts = data.timestamp.split('T');
-          tr.innerHTML = `
-            <td>${timeParts[0]}</td>
-            <td>${timeParts[1].split('.')[0]}</td>
-            <td class="${data.gas1 == 100 ? 'green' : ''}">${data.gas1 ?? '-'}</td>
-            <td class="${data.gas2 >= 50 ? 'red' : data.gas2 >= 20 ? 'orange' : data.gas2 >= 1 ? 'yellow' : 'green'}">${data.gas2 ?? '-'}</td>
-            <td>${data.temperature ?? '-'}</td>
-            <td>${data.humidity ?? '-'}</td>
-            <td>${data.pressure ?? '-'}</td>
-            <td class="${data.supercap_voltage > 2000 ? 'green' : data.supercap_voltage > 1000 ? 'yellow' : 'red'}">${data.supercap_voltage ?? '-'}</td>
-            <td>${data.button_level ?? '-'}</td>
-          `;
-          table.appendChild(tr);
+    function loadSensorData() {
+      fetch(`/api/sensor/${sensorId}`)
+        .then(res => res.json())
+        .then(rows => {
+          originalData = rows;
+          renderFilteredData(rows);
+        })
+        .catch(err => {
+          document.body.innerHTML = `<p style="color:red;text-align:center;">Failed to load data: ${err.message}</p>`;
         });
-      })
-      .catch(err => {
-        document.body.innerHTML = `<p style="color:red;text-align:center;">Failed to load data: ${err.message}</p>`;
+    }
+
+    function renderFilteredData(data) {
+      document.getElementById('dataTable').innerHTML = '';
+
+      const timestamps = [];
+      const temperatures = [];
+      const humidities = [];
+      const batteries = [];
+
+      data.forEach(d => {
+        const date = new Date(d.timestamp);
+        const dateStr = date.toISOString().split('T')[0];
+        const timeStr = date.toTimeString().split(' ')[0];
+
+        timestamps.push(`${dateStr} ${timeStr}`);
+        temperatures.push(d.temperature ?? null);
+        humidities.push(d.humidity ?? null);
+        batteries.push(d.supercap_voltage ?? null);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${dateStr}</td>
+          <td>${timeStr}</td>
+          <td class="${d.gas1 == 100 ? 'green' : ''}">${d.gas1 ?? '-'}</td>
+          <td class="${d.gas2 >= 50 ? 'red' : d.gas2 >= 20 ? 'orange' : d.gas2 >= 1 ? 'yellow' : 'green'}">${d.gas2 ?? '-'}</td>
+          <td>${d.temperature ?? '-'}</td>
+          <td>${d.humidity ?? '-'}</td>
+          <td>${d.pressure ?? '-'}</td>
+          <td class="${d.supercap_voltage > 2000 ? 'green' : d.supercap_voltage > 1000 ? 'yellow' : 'red'}">${d.supercap_voltage ?? '-'}</td>
+          <td>${d.button_level ?? '-'}</td>
+        `;
+        document.getElementById('dataTable').appendChild(tr);
       });
+
+      drawChart('temperatureChart', 'Temperatūra (°C)', timestamps, temperatures, 'rgba(255,99,132,0.6)');
+      drawChart('humidityChart', 'Mitrums (%)', timestamps, humidities, 'rgba(54,162,235,0.6)');
+      drawChart('batteryChart', 'SuperCap Voltāža (mV)', timestamps, batteries, 'rgba(255,206,86,0.6)');
+    }
+
+    function drawChart(canvasId, label, labels, data, color) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      if (Chart.getChart(canvasId)) Chart.getChart(canvasId).destroy();
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            borderColor: color,
+            backgroundColor: color,
+            tension: 0.2,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 10,
+                autoSkip: true
+              }
+            },
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+
+    function applyDateFilter() {
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+
+      const filtered = originalData.filter(d => {
+        const dt = d.timestamp.split('T')[0];
+        return (!from || dt >= from) && (!to || dt <= to);
+      });
+      renderFilteredData(filtered);
+    }
+
+    function resetFilter() {
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value = '';
+      renderFilteredData(originalData);
+    }
+
+    function setRange(type) {
+      const now = new Date();
+      let from;
+
+      switch (type) {
+        case 'day': from = new Date(now); from.setDate(now.getDate() - 1); break;
+        case 'week': from = new Date(now); from.setDate(now.getDate() - 7); break;
+        case 'month': from = new Date(now); from.setMonth(now.getMonth() - 1); break;
+        default: renderFilteredData(originalData); return;
+      }
+
+      const isoFrom = from.toISOString().split('T')[0];
+      const isoTo = now.toISOString().split('T')[0];
+      document.getElementById('dateFrom').value = isoFrom;
+      document.getElementById('dateTo').value = isoTo;
+      applyDateFilter();
+    }
+
+    function downloadChart(id) {
+      const link = document.createElement('a');
+      link.href = document.getElementById(id).toDataURL('image/png');
+      link.download = `${id}.png`;
+      link.click();
+    }
+
+    window.onload = loadSensorData;
   </script>
 </body>
 </html>
