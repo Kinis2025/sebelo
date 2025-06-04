@@ -1,73 +1,116 @@
 <!DOCTYPE html>
-<html lang="lv">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Sensoru dati</title>
-    <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th, td {
-            padding: 6px;
-            border: 1px solid black;
-            text-align: center;
-        }
-        .alert {
-            background-color: #ffcccc;
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Sebelo Measurements</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      text-align: center;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      padding: 6px;
+      border: 1px solid black;
+      text-align: center;
+    }
+    .green {
+      background-color: #ccffcc;
+      font-weight: bold;
+    }
+    .yellow {
+      background-color: #ffffcc;
+      font-weight: bold;
+    }
+    .orange {
+      background-color: #ffcc99;
+      font-weight: bold;
+    }
+    .red {
+      background-color: #ffcccc;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-    <h1>Sensoru dati</h1>
-    <table>
-        <thead>
-            <tr>
-                <th>Sensor ID</th>
-                <th>Laiks</th>
-                <th>Gāze 1</th>
-                <th>Gāze 2</th>
-                <th>Temperatūra (°C)</th>
-                <th>Mitrums (%)</th>
-                <th>Spiediens (hPa)</th>
-                <th>Superkapa (mV)</th>
-            </tr>
-        </thead>
-        <tbody id="sensorTable"></tbody>
-    </table>
+  <h1>Sebelo Measurements</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Sensor ID</th>
+        <th>Date</th>
+        <th>Time</th>
+        <th>Normal (%)</th>
+        <th>Smoke (%)</th>
+        <th>Temperature (°C)</th>
+        <th>Humidity (%)</th>
+        <th>Pressure (hPa)</th>
+        <th>Battery Level (mV)</th>
+        <th>Button</th>
+      </tr>
+    </thead>
+    <tbody id="sensorTable"></tbody>
+  </table>
 
-    <script>
-        async function loadSensors() {
-            const res = await fetch('/api/sensors');
-            const sensors = await res.json();
-            const tbody = document.getElementById('sensorTable');
-            tbody.innerHTML = '';
+  <script>
+    async function loadSensors() {
+      const res = await fetch('/api/sensors');
+      const sensors = await res.json();
+      const tbody = document.getElementById('sensorTable');
+      tbody.innerHTML = '';
 
-            Object.entries(sensors).forEach(([id, data]) => {
-                const row = document.createElement('tr');
+      Object.entries(sensors).forEach(([id, data]) => {
+        const row = document.createElement('tr');
 
-                let gas1 = data.gas1 ?? data.gas1Prob ?? '-';
-                let gas2 = data.gas2 ?? data.gas2Prob ?? '-';
-                let gas1Class = (+gas1 > 80) ? 'alert' : '';
-                let gas2Class = (+gas2 > 80) ? 'alert' : '';
+        let gas1 = data.gas1 ?? data.gas1Prob ?? '-';
+        let gas2 = data.gas2 ?? data.gas2Prob ?? '-';
+        let battery = data.superCapVoltage ?? '-';
 
-                row.innerHTML =
-                    '<td>' + id + '</td>' +
-                    '<td>' + (data.time || '') + '</td>' +
-                    '<td class="' + gas1Class + '">' + gas1 + '</td>' +
-                    '<td class="' + gas2Class + '">' + gas2 + '</td>' +
-                    '<td>' + (data.temperature ?? '-') + '</td>' +
-                    '<td>' + (data.humidity ?? '-') + '</td>' +
-                    '<td>' + (data.pressure ?? '-') + '</td>' +
-                    '<td>' + (data.superCapVoltage ?? '-') + '</td>';
+        // Format time and date
+        let time = data.time ? new Date(data.time) : null;
+        let timeStr = time ? time.toLocaleTimeString('en-GB') : '-';
+        let dateStr = time ? time.toLocaleDateString('en-GB') : '-';
 
-                tbody.appendChild(row);
-            });
-        }
+        // Gas1 (Normal) - green if 100%
+        let gas1Class = (+gas1 === 100) ? 'green' : '';
 
-        setInterval(loadSensors, 5000);
-        loadSensors();
-    </script>
+        // Gas2 (Smoke) coloring
+        gas2 = parseInt(gas2);
+        let gas2Class = '';
+        if (gas2 > 50) gas2Class = 'red';
+        else if (gas2 >= 20) gas2Class = 'orange';
+        else if (gas2 >= 0) gas2Class = 'yellow';
+
+        // Battery coloring
+        let batteryClass = '';
+        battery = parseInt(battery);
+        if (battery > 2000) batteryClass = 'green';
+        else if (battery >= 1000) batteryClass = 'yellow';
+        else if (battery > 0) batteryClass = 'red';
+
+        row.innerHTML =
+          '<td>' + id + '</td>' +
+          '<td>' + dateStr + '</td>' +
+          '<td>' + timeStr + '</td>' +
+          '<td class="' + gas1Class + '">' + (isNaN(gas1) ? '-' : gas1 + '%') + '</td>' +
+          '<td class="' + gas2Class + '">' + (isNaN(gas2) ? '-' : gas2 + '%') + '</td>' +
+          '<td>' + (data.temperature ?? '-') + '</td>' +
+          '<td>' + (data.humidity ?? '-') + '</td>' +
+          '<td>' + (data.pressure ?? '-') + '</td>' +
+          '<td class="' + batteryClass + '">' + (isNaN(battery) ? '-' : battery) + '</td>' +
+          '<td>' + ((data.buttonLevel ?? 0) === 1 ? '✔️' : '—') + '</td>';
+
+        tbody.appendChild(row);
+      });
+    }
+
+    setInterval(loadSensors, 5000);
+    loadSensors();
+  </script>
 </body>
 </html>
