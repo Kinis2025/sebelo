@@ -23,8 +23,8 @@
       margin: 30px 0;
     }
     .chart-container {
-      flex: 1 1 30%;
-      min-width: 300px;
+      flex: 1 1 22%;
+      min-width: 250px;
     }
     canvas {
       width: 100% !important;
@@ -35,13 +35,6 @@
 </head>
 <body>
   <h1 id="header">Sensor Data</h1>
-
-  <!-- Smoke Chart -->
-  <div style="display: flex; justify-content: center; margin: 30px 0;">
-    <div class="chart-container">
-      <canvas id="smokeChart"></canvas>
-    </div>
-  </div>
 
   <!-- Filters -->
   <div style="text-align: center; margin: 20px 0;">
@@ -58,17 +51,12 @@
     <button onclick="setRange('all')">Visi dati</button>
   </div>
 
-  <!-- Lower Charts -->
+  <!-- All 4 Charts in One Row -->
   <div class="chart-row">
-    <div class="chart-container">
-      <canvas id="temperatureChart"></canvas>
-    </div>
-    <div class="chart-container">
-      <canvas id="humidityChart"></canvas>
-    </div>
-    <div class="chart-container">
-      <canvas id="batteryChart"></canvas>
-    </div>
+    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
   </div>
 
   <!-- Data Table -->
@@ -141,7 +129,7 @@
         document.getElementById('dataTable').appendChild(tr);
       });
 
-      // Reverse all arrays to show oldest on left
+      // Reverse arrays so oldest is on the left
       const reversedTimestamps = [...timestamps].reverse();
       const reversedTemperatures = [...temperatures].reverse();
       const reversedHumidities = [...humidities].reverse();
