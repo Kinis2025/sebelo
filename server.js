@@ -79,11 +79,6 @@ app.post('/ttn', (req, res) => {
   }
 });
 
-// ✅ Sākuma API ar pēdējiem datiem (index.html)
-app.get('/api/sensors', (req, res) => {
-  res.json(sensorData);
-});
-
 // ✅ Pēdējie mērījumi no datubāzes visiem sensoriem
 app.get('/api/sensors', (req, res) => {
   const query = `
