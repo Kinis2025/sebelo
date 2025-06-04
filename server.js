@@ -31,7 +31,8 @@ db.connect((err) => {
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids.device_id;
-    const payload = req.body.uplink_message.decoded_payload?.decoded || req.body.uplink_message.decoded_payload || {};
+const dp = req.body.uplink_message.decoded_payload;
+const payload = dp?.decoded ?? dp ?? {};
     const timestamp = new Date().toISOString();
 
     const entry = {
