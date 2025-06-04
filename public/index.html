@@ -67,19 +67,19 @@
       Object.entries(sensors).forEach(([id, data]) => {
         const row = document.createElement('tr');
 
+        // Format time and date with Europe/Riga timezone
+        const timeObj = data.time ? new Date(data.time) : null;
+        const dateStr = timeObj ? timeObj.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
+        const timeStr = timeObj ? timeObj.toLocaleTimeString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
+
         let gas1 = data.gas1 ?? data.gas1Prob ?? '-';
         let gas2 = data.gas2 ?? data.gas2Prob ?? '-';
-        let battery = data.superCapVoltage ?? '-';
-
-        // Format time and date
-        let time = data.time ? new Date(data.time) : null;
-        let timeStr = time ? time.toLocaleTimeString('en-GB') : '-';
-        let dateStr = time ? time.toLocaleDateString('en-GB') : '-';
+        let battery = data.supercap_voltage ?? data.superCapVoltage ?? '-';
 
         // Gas1 (Normal) coloring
         let gas1Class = (+gas1 === 100) ? 'green' : '';
 
-        // Gas2 (Smoke) coloring - FIXED
+        // Gas2 (Smoke) coloring
         gas2 = parseInt(gas2);
         let gas2Class = '';
         if (gas2 === 0) gas2Class = 'green';
@@ -88,24 +88,24 @@
         else gas2Class = 'red';
 
         // Battery coloring
-        let batteryClass = '';
         battery = parseInt(battery);
+        let batteryClass = '';
         if (battery > 2000) batteryClass = 'green';
         else if (battery >= 1000) batteryClass = 'yellow';
         else if (battery > 0) batteryClass = 'red';
 
-row.innerHTML = `
-  <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
-  <td>${(data.time || '').split('T')[0]}</td>
-  <td>${(data.time || '').split('T')[1]?.split('.')[0] || ''}</td>
-  <td class="${data.gas1 == 100 ? 'green' : ''}">${data.gas1 ?? '-'}</td>
-  <td class="${data.gas2 >= 50 ? 'red' : data.gas2 >= 20 ? 'orange' : data.gas2 >= 1 ? 'yellow' : 'green'}">${data.gas2 ?? '-'}</td>
-  <td>${data.temperature ?? '-'}</td>
-  <td>${data.humidity ?? '-'}</td>
-  <td>${data.pressure ?? '-'}</td>
-  <td class="${data.supercap_voltage > 2000 ? 'green' : data.supercap_voltage > 1000 ? 'yellow' : 'red'}">${data.supercap_voltage ?? '-'}</td>
-  <td>${data.button_level ?? '-'}</td>
-`;
+        row.innerHTML = `
+          <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
+          <td>${dateStr}</td>
+          <td>${timeStr}</td>
+          <td class="${gas1Class}">${gas1}</td>
+          <td class="${gas2Class}">${data.gas2 ?? '-'}</td>
+          <td>${data.temperature ?? '-'}</td>
+          <td>${data.humidity ?? '-'}</td>
+          <td>${data.pressure ?? '-'}</td>
+          <td class="${batteryClass}">${battery}</td>
+          <td>${data.button_level ?? '-'}</td>
+        `;
 
         tbody.appendChild(row);
       });
