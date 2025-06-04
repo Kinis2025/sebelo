@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2');
@@ -11,12 +12,13 @@ const sensorData = {};
 
 // ✅ MySQL savienojums
 const db = mysql.createConnection({
-  host: '18.196.124.62',
-  user: 'root',
-  password: 'gALX2AKwpLBFEBk1#',
-  database: 'sebelo',
-  port: 3306
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT
 });
+
 
 db.connect((err) => {
   if (err) {
