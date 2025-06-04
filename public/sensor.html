@@ -3,88 +3,95 @@
 <head>
   <meta charset="UTF-8" />
   <title>Sensor Details</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
-      display: flex;
-      gap: 20px;
-    }
-    .left-panel {
-      flex: 1;
-    }
-    .right-panel {
-      flex: 1;
+      padding: 0;
     }
     h1 {
       text-align: center;
+      margin-bottom: 20px;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 20px;
+      margin-bottom: 20px;
     }
     th, td {
       padding: 6px;
       border: 1px solid #aaa;
       text-align: center;
     }
+
     .green { background-color: #ccffcc; }
     .yellow { background-color: #ffffcc; }
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
 
+    #sensorMap {
+      width: 100%;
+      height: 300px;
+      margin-bottom: 30px;
+      border: 1px solid #aaa;
+    }
+
     .chart-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 20px;
       justify-content: space-between;
-      margin-top: 20px;
-    }
-    .chart-container, .map-container {
-      flex: 1 1 45%;
-      min-width: 250px;
-      height: 300px;
+      gap: 20px;
     }
 
-    #sensorMap {
-      width: 100%;
-      height: 100%;
+    .chart-container {
+      flex: 1 1 22%;
+      min-width: 240px;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    @media (max-width: 768px) {
+      .chart-container {
+        flex: 1 1 100%;
+      }
     }
   </style>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="left-panel">
-    <h1 id="header">Sensor Data</h1>
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Time</th>
-          <th>Normal (%)</th>
-          <th>Smoke (%)</th>
-          <th>Temp (°C)</th>
-          <th>Humidity (%)</th>
-          <th>Pressure (hPa)</th>
-          <th>Battery</th>
-          <th>Button</th>
-        </tr>
-      </thead>
-      <tbody id="dataTable"></tbody>
-    </table>
-  </div>
+  <h1 id="header">Sensor Data</h1>
 
-  <div class="right-panel">
-    <div class="chart-row">
-      <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-      <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
-      <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-      <div class="chart-container"><canvas id="batteryChart"></canvas></div>
-    </div>
-    <div class="map-container"><div id="sensorMap"></div></div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Time</th>
+        <th>Normal (%)</th>
+        <th>Smoke (%)</th>
+        <th>Temp (°C)</th>
+        <th>Humidity (%)</th>
+        <th>Pressure (hPa)</th>
+        <th>Battery</th>
+        <th>Button</th>
+      </tr>
+    </thead>
+    <tbody id="dataTable"></tbody>
+  </table>
+
+  <div id="sensorMap"></div>
+
+  <div class="chart-row">
+    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
   </div>
 
   <script>
@@ -112,18 +119,16 @@
     async function loadSensorData() {
       const res = await fetch(`/api/sensor/${sensorId}`);
       const data = await res.json();
-
       if (!data.length || data[0].timestamp === latestTimestamp) return;
       latestTimestamp = data[0].timestamp;
-
       renderTable(data);
       renderCharts(data);
-      renderMap(data);
+      renderMap(data[0]);
     }
 
     function renderTable(data) {
-      const table = document.getElementById("dataTable");
-      table.innerHTML = '';
+      const tbody = document.getElementById("dataTable");
+      tbody.innerHTML = '';
       data.forEach(row => {
         const d = new Date(row.timestamp);
         const tr = document.createElement('tr');
@@ -138,7 +143,7 @@
           <td class="${row.supercap_voltage > 2000 ? 'green' : row.supercap_voltage > 1000 ? 'yellow' : 'red'}">${row.supercap_voltage ?? '-'}</td>
           <td>${row.button_level ?? '-'}</td>
         `;
-        table.appendChild(tr);
+        tbody.appendChild(tr);
       });
     }
 
@@ -161,7 +166,7 @@
       new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
+          labels,
           datasets: [{
             label, data,
             borderColor: color,
@@ -177,13 +182,12 @@
       });
     }
 
-    async function renderMap(data) {
-      const locationRes = await fetch('/api/map-sensors');
-      const sensors = await locationRes.json();
+    async function renderMap(latest) {
+      const locRes = await fetch('/api/map-sensors');
+      const sensors = await locRes.json();
       const location = sensors.find(s => s.sensor_id === sensorId);
       if (!location?.latitude || !location?.longitude) return;
 
-      const latest = data[0];
       const color = getColor(latest.gas2);
       const icon = createIcon(color);
       const popup = `
@@ -196,7 +200,7 @@
       `;
 
       if (!map) {
-        map = L.map('sensorMap').setView([location.latitude, location.longitude], 13);
+        map = L.map('sensorMap').setView([location.latitude, location.longitude], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
