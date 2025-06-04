@@ -76,15 +76,16 @@
         let timeStr = time ? time.toLocaleTimeString('en-GB') : '-';
         let dateStr = time ? time.toLocaleDateString('en-GB') : '-';
 
-        // Gas1 (Normal) - green if 100%
+        // Gas1 (Normal) coloring
         let gas1Class = (+gas1 === 100) ? 'green' : '';
 
-        // Gas2 (Smoke) coloring
+        // Gas2 (Smoke) coloring - FIXED
         gas2 = parseInt(gas2);
         let gas2Class = '';
-        if (gas2 > 50) gas2Class = 'red';
-        else if (gas2 >= 20) gas2Class = 'orange';
-        else if (gas2 >= 0) gas2Class = 'yellow';
+        if (gas2 === 0) gas2Class = 'green';
+        else if (gas2 <= 10) gas2Class = 'yellow';
+        else if (gas2 <= 50) gas2Class = 'orange';
+        else gas2Class = 'red';
 
         // Battery coloring
         let batteryClass = '';
