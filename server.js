@@ -84,20 +84,41 @@ app.get('/api/sensors', (req, res) => {
   res.json(sensorData);
 });
 
-// ✅ Katra sensora vēsturiskie dati JSON (sensor.html izmantos)
-app.get('/api/sensor/:id', (req, res) => {
-  const sensorId = req.params.id;
-  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
+// ✅ Pēdējie mērījumi no datubāzes visiem sensoriem
+app.get('/api/sensors', (req, res) => {
+  const query = `
+    SELECT * FROM sensor_data AS sd
+    INNER JOIN (
+      SELECT sensor_id, MAX(timestamp) AS latest
+      FROM sensor_data
+      GROUP BY sensor_id
+    ) AS latest_data
+    ON sd.sensor_id = latest_data.sensor_id AND sd.timestamp = latest_data.latest
+  `;
 
-  db.query(query, [sensorId], (err, results) => {
+  db.query(query, (err, results) => {
     if (err) {
-      console.error('❌ Error fetching history:', err);
+      console.error('❌ Error fetching latest measurements:', err);
       res.status(500).send('Database error');
     } else {
-      res.json(results);
+      const response = {};
+      results.forEach(row => {
+        response[row.sensor_id] = {
+          time: row.timestamp,
+          gas1: row.gas1,
+          gas2: row.gas2,
+          temperature: row.temperature,
+          humidity: row.humidity,
+          pressure: row.pressure,
+          supercap_voltage: row.supercap_voltage,
+          button_level: row.button_level
+        };
+      });
+      res.json(response);
     }
   });
 });
+
 
 // ✅ Nosūta vēstures HTML failu, kad atver lapu par sensoru
 app.get('/sensor/:id', (req, res) => {
