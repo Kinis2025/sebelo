@@ -1,156 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Sensor Details</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { text-align: center; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { padding: 6px; border: 1px solid #aaa; text-align: center; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    .left-panel {
+      flex: 1;
+    }
+    .right-panel {
+      flex: 1;
+    }
+    h1 {
+      text-align: center;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 6px;
+      border: 1px solid #aaa;
+      text-align: center;
+    }
     .green { background-color: #ccffcc; }
     .yellow { background-color: #ffffcc; }
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
-    button { margin: 5px; padding: 6px 12px; }
-    input[type="date"] { padding: 5px; }
 
     .chart-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: space-around;
       gap: 20px;
-      margin: 30px 0;
+      justify-content: space-between;
+      margin-top: 20px;
     }
-    .chart-container {
-      flex: 1 1 22%;
+    .chart-container, .map-container {
+      flex: 1 1 45%;
       min-width: 250px;
+      height: 300px;
     }
-    canvas {
-      width: 100% !important;
-      height: auto !important;
+
+    #sensorMap {
+      width: 100%;
+      height: 100%;
     }
   </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1 id="header">Sensor Data</h1>
-
-  <!-- Filters -->
-  <div style="text-align: center; margin: 20px 0;">
-    <label>Datums no: <input type="date" id="dateFrom"></label>
-    <label style="margin-left: 10px;">līdz: <input type="date" id="dateTo"></label>
-    <button onclick="applyDateFilter()">Filtrēt</button>
-    <button onclick="resetFilter()">Rādīt visu</button>
+  <div class="left-panel">
+    <h1 id="header">Sensor Data</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Normal (%)</th>
+          <th>Smoke (%)</th>
+          <th>Temp (°C)</th>
+          <th>Humidity (%)</th>
+          <th>Pressure (hPa)</th>
+          <th>Battery</th>
+          <th>Button</th>
+        </tr>
+      </thead>
+      <tbody id="dataTable"></tbody>
+    </table>
   </div>
 
-  <div style="text-align: center; margin: 10px 0;">
-    <button onclick="setRange('day')">Šodien</button>
-    <button onclick="setRange('week')">Nedēļa</button>
-    <button onclick="setRange('month')">Mēnesis</button>
-    <button onclick="setRange('all')">Visi dati</button>
+  <div class="right-panel">
+    <div class="chart-row">
+      <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+      <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+      <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+      <div class="chart-container"><canvas id="batteryChart"></canvas></div>
+    </div>
+    <div class="map-container"><div id="sensorMap"></div></div>
   </div>
-
-  <!-- All 4 Charts in One Row -->
-  <div class="chart-row">
-    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
-    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
-  </div>
-
-  <!-- Data Table -->
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Time</th>
-        <th>Normal (%)</th>
-        <th>Smoke (%)</th>
-        <th>Temp (°C)</th>
-        <th>Humidity (%)</th>
-        <th>Pressure (hPa)</th>
-        <th>Battery Level</th>
-        <th>Button</th>
-      </tr>
-    </thead>
-    <tbody id="dataTable"></tbody>
-  </table>
 
   <script>
-    let originalData = [];
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
     document.getElementById("header").textContent = `Sensor: ${sensorId}`;
 
-    function loadSensorData() {
-      fetch(`/api/sensor/${sensorId}`)
-        .then(res => res.json())
-        .then(rows => {
-          originalData = rows;
-          renderFilteredData(rows);
-        })
-        .catch(err => {
-          document.body.innerHTML = `<p style="color:red;text-align:center;">Failed to load data: ${err.message}</p>`;
-        });
+    let latestTimestamp = null;
+    let map, marker;
+
+    function getColor(smoke) {
+      if (smoke >= 50) return 'red';
+      if (smoke >= 20) return 'orange';
+      if (smoke >= 1) return 'yellow';
+      return 'green';
     }
 
-    function renderFilteredData(data) {
-      document.getElementById('dataTable').innerHTML = '';
+    function createIcon(color) {
+      return L.divIcon({
+        html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #333;"></div>`,
+        className: '',
+        iconSize: [16, 16]
+      });
+    }
 
-      const timestamps = [];
-      const temperatures = [];
-      const humidities = [];
-      const batteries = [];
-      const smokes = [];
+    async function loadSensorData() {
+      const res = await fetch(`/api/sensor/${sensorId}`);
+      const data = await res.json();
 
-      data.forEach(d => {
-        const dateObj = new Date(d.timestamp);
-        const dateStr = dateObj.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' });
-        const timeStr = dateObj.toLocaleTimeString('lv-LV', { timeZone: 'Europe/Riga' });
+      if (!data.length || data[0].timestamp === latestTimestamp) return;
+      latestTimestamp = data[0].timestamp;
 
-        timestamps.push(`${dateStr} ${timeStr}`);
-        temperatures.push(d.temperature ?? null);
-        humidities.push(d.humidity ?? null);
-        batteries.push(d.supercap_voltage ?? null);
-        smokes.push(d.gas2 ?? null);
+      renderTable(data);
+      renderCharts(data);
+      renderMap(data);
+    }
 
+    function renderTable(data) {
+      const table = document.getElementById("dataTable");
+      table.innerHTML = '';
+      data.forEach(row => {
+        const d = new Date(row.timestamp);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${dateStr}</td>
-          <td>${timeStr}</td>
-          <td class="${d.gas1 == 100 ? 'green' : ''}">${d.gas1 ?? '-'}</td>
-          <td class="${d.gas2 >= 50 ? 'red' : d.gas2 >= 20 ? 'orange' : d.gas2 >= 1 ? 'yellow' : 'green'}">${d.gas2 ?? '-'}</td>
-          <td>${d.temperature ?? '-'}</td>
-          <td>${d.humidity ?? '-'}</td>
-          <td>${d.pressure ?? '-'}</td>
-          <td class="${d.supercap_voltage > 2000 ? 'green' : d.supercap_voltage > 1000 ? 'yellow' : 'red'}">${d.supercap_voltage ?? '-'}</td>
-          <td>${d.button_level ?? '-'}</td>
+          <td>${d.toLocaleDateString('lv-LV')}</td>
+          <td>${d.toLocaleTimeString('lv-LV')}</td>
+          <td class="${row.gas1 == 100 ? 'green' : ''}">${row.gas1 ?? '-'}</td>
+          <td class="${getColor(row.gas2)}">${row.gas2 ?? '-'}</td>
+          <td>${row.temperature ?? '-'}</td>
+          <td>${row.humidity ?? '-'}</td>
+          <td>${row.pressure ?? '-'}</td>
+          <td class="${row.supercap_voltage > 2000 ? 'green' : row.supercap_voltage > 1000 ? 'yellow' : 'red'}">${row.supercap_voltage ?? '-'}</td>
+          <td>${row.button_level ?? '-'}</td>
         `;
-        document.getElementById('dataTable').appendChild(tr);
+        table.appendChild(tr);
       });
-
-      const reversedTimestamps = [...timestamps].reverse();
-      const reversedTemperatures = [...temperatures].reverse();
-      const reversedHumidities = [...humidities].reverse();
-      const reversedBatteries = [...batteries].reverse();
-      const reversedSmokes = [...smokes].reverse();
-
-      drawChart('smokeChart', 'Smoke (%)', reversedTimestamps, reversedSmokes, 'rgba(100,100,255,0.6)');
-      drawChart('temperatureChart', 'Temperatūra (°C)', reversedTimestamps, reversedTemperatures, 'rgba(255,99,132,0.6)');
-      drawChart('humidityChart', 'Mitrums (%)', reversedTimestamps, reversedHumidities, 'rgba(54,162,235,0.6)');
-      drawChart('batteryChart', 'SuperCap Voltāža (mV)', reversedTimestamps, reversedBatteries, 'rgba(255,206,86,0.6)');
     }
 
-    function drawChart(canvasId, label, labels, data, color) {
-      const ctx = document.getElementById(canvasId).getContext('2d');
-      if (Chart.getChart(canvasId)) Chart.getChart(canvasId).destroy();
+    function renderCharts(data) {
+      const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString('lv-LV')).reverse();
+      const smoke = data.map(d => d.gas2 ?? null).reverse();
+      const temp = data.map(d => d.temperature ?? null).reverse();
+      const hum = data.map(d => d.humidity ?? null).reverse();
+      const batt = data.map(d => d.supercap_voltage ?? null).reverse();
+
+      drawChart('smokeChart', 'Smoke (%)', labels, smoke, 'rgba(100,100,255,0.6)');
+      drawChart('temperatureChart', 'Temp (°C)', labels, temp, 'rgba(255,99,132,0.6)');
+      drawChart('humidityChart', 'Humidity (%)', labels, hum, 'rgba(54,162,235,0.6)');
+      drawChart('batteryChart', 'Battery (mV)', labels, batt, 'rgba(255,206,86,0.6)');
+    }
+
+    function drawChart(id, label, labels, data, color) {
+      const ctx = document.getElementById(id).getContext('2d');
+      if (Chart.getChart(id)) Chart.getChart(id).destroy();
       new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [{
-            label: label,
-            data: data,
+            label, data,
             borderColor: color,
             backgroundColor: color,
             tension: 0.2,
@@ -159,57 +172,44 @@
         },
         options: {
           responsive: true,
-          scales: {
-            x: {
-              ticks: {
-                maxTicksLimit: 10,
-                autoSkip: true
-              }
-            },
-            y: {
-              beginAtZero: false
-            }
-          }
+          scales: { x: { ticks: { autoSkip: true, maxTicksLimit: 10 } } }
         }
       });
     }
 
-    function applyDateFilter() {
-      const from = document.getElementById('dateFrom').value;
-      const to = document.getElementById('dateTo').value;
+    async function renderMap(data) {
+      const locationRes = await fetch('/api/map-sensors');
+      const sensors = await locationRes.json();
+      const location = sensors.find(s => s.sensor_id === sensorId);
+      if (!location?.latitude || !location?.longitude) return;
 
-      const filtered = originalData.filter(d => {
-        const dt = d.timestamp.split('T')[0];
-        return (!from || dt >= from) && (!to || dt <= to);
-      });
-      renderFilteredData(filtered);
-    }
+      const latest = data[0];
+      const color = getColor(latest.gas2);
+      const icon = createIcon(color);
+      const popup = `
+        <b>${sensorId}</b><br>
+        Smoke: ${latest.gas2 ?? '-'}%<br>
+        Temp: ${latest.temperature ?? '-'}°C<br>
+        Humidity: ${latest.humidity ?? '-'}%<br>
+        Pressure: ${latest.pressure ?? '-'}<br>
+        Time: ${new Date(latest.timestamp).toLocaleString('lv-LV')}
+      `;
 
-    function resetFilter() {
-      document.getElementById('dateFrom').value = '';
-      document.getElementById('dateTo').value = '';
-      renderFilteredData(originalData);
-    }
-
-    function setRange(type) {
-      const now = new Date();
-      let from;
-
-      switch (type) {
-        case 'day': from = new Date(now); from.setDate(now.getDate() - 1); break;
-        case 'week': from = new Date(now); from.setDate(now.getDate() - 7); break;
-        case 'month': from = new Date(now); from.setMonth(now.getMonth() - 1); break;
-        default: renderFilteredData(originalData); return;
+      if (!map) {
+        map = L.map('sensorMap').setView([location.latitude, location.longitude], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
       }
 
-      const isoFrom = from.toISOString().split('T')[0];
-      const isoTo = now.toISOString().split('T')[0];
-      document.getElementById('dateFrom').value = isoFrom;
-      document.getElementById('dateTo').value = isoTo;
-      applyDateFilter();
+      if (marker) marker.remove();
+      marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
     }
 
-    window.onload = loadSensorData;
+    window.onload = () => {
+      loadSensorData();
+      setInterval(loadSensorData, 15000);
+    };
   </script>
 </body>
 </html>
