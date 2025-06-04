@@ -19,7 +19,6 @@ const db = mysql.createConnection({
   port: process.env.DB_PORT
 });
 
-
 db.connect((err) => {
   if (err) {
     console.error('❌ MySQL connection failed:', err);
@@ -28,6 +27,7 @@ db.connect((err) => {
   }
 });
 
+// ✅ Webhook no TTN
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids.device_id;
@@ -47,7 +47,7 @@ app.post('/ttn', (req, res) => {
 
     sensorData[devId] = entry;
 
-    // ✅ Pierakstām datubāzē
+    // ✅ Saglabā datubāzē
     const query = `
       INSERT INTO sensor_data
       (sensor_id, timestamp, gas1, gas2, temperature, humidity, pressure, supercap_voltage, button_level)
@@ -79,8 +79,29 @@ app.post('/ttn', (req, res) => {
   }
 });
 
+// ✅ Sākuma API ar pēdējiem datiem (index.html)
 app.get('/api/sensors', (req, res) => {
   res.json(sensorData);
+});
+
+// ✅ Katra sensora vēsturiskie dati JSON (sensor.html izmantos)
+app.get('/api/sensor/:id', (req, res) => {
+  const sensorId = req.params.id;
+  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
+
+  db.query(query, [sensorId], (err, results) => {
+    if (err) {
+      console.error('❌ Error fetching history:', err);
+      res.status(500).send('Database error');
+    } else {
+      res.json(results);
+    }
+  });
+});
+
+// ✅ Nosūta vēstures HTML failu, kad atver lapu par sensoru
+app.get('/sensor/:id', (req, res) => {
+  res.sendFile(__dirname + '/public/sensor.html');
 });
 
 app.listen(PORT, () => {
