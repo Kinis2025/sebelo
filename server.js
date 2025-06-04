@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 app.post('/ttn', (req, res) => {
     const { end_device_ids, uplink_message } = req.body;
     const id = end_device_ids.device_id;
-    const data = uplink_message.decoded_payload;
+    const data = uplink_message.decoded_payload.decoded || uplink_message.decoded_payload;
 
     sensors[id] = {
         time: new Date().toISOString(),
