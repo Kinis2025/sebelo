@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+  <meta charset="UTF-8">
+  <title>Sensora koordinātes</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    h1 { text-align: center; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { padding: 6px; border: 1px solid #aaa; text-align: center; }
+    input { width: 100%; padding: 4px; }
+    button { padding: 4px 10px; }
+  </style>
+</head>
+<body>
+  <h1>Sensora koordināšu pārvaldība</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Sensor ID</th>
+        <th>Label</th>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        <th>Saglabāt</th>
+      </tr>
+    </thead>
+    <tbody id="sensorTable"></tbody>
+  </table>
+
+  <script>
+    async function loadSensors() {
+      const res = await fetch('/api/map-sensors');
+      const sensors = await res.json();
+      const tbody = document.getElementById('sensorTable');
+      tbody.innerHTML = '';
+
+      sensors.forEach(s => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${s.sensor_id}</td>
+          <td><input type="text" value="${s.label || ''}" id="label-${s.sensor_id}"></td>
+          <td><input type="number" step="any" value="${s.latitude ?? ''}" id="lat-${s.sensor_id}"></td>
+          <td><input type="number" step="any" value="${s.longitude ?? ''}" id="lon-${s.sensor_id}"></td>
+          <td><button onclick="saveSensor('${s.sensor_id}')">Saglabāt</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function saveSensor(id) {
+      const label = document.getElementById(`label-${id}`).value;
+      const latitude = parseFloat(document.getElementById(`lat-${id}`).value);
+      const longitude = parseFloat(document.getElementById(`lon-${id}`).value);
+
+      const body = JSON.stringify({ label, latitude, longitude });
+
+      const res = await fetch(`/api/sensor-location/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+
+      if (res.ok) alert('Saglabāts!');
+      else alert('Kļūda saglabājot koordinātes');
+    }
+
+    loadSensors();
+  </script>
+</body>
+</html>
