@@ -1,118 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="lv">
 <head>
   <meta charset="UTF-8">
-  <title>Sebelo Measurements</title>
+  <title>Sebelo Sensors</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
+      margin: 0;
       font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+    #leftPanel {
+      width: 55%;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid #ccc;
+    }
+    #map {
+      flex: 1;
     }
     h1 {
       text-align: center;
     }
     table {
-      border-collapse: collapse;
       width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
     }
     th, td {
       padding: 6px;
-      border: 1px solid black;
+      border: 1px solid #aaa;
       text-align: center;
     }
-    .green {
-      background-color: #ccffcc;
-      font-weight: bold;
-    }
-    .yellow {
-      background-color: #ffffcc;
-      font-weight: bold;
-    }
-    .orange {
-      background-color: #ffcc99;
-      font-weight: bold;
-    }
-    .red {
-      background-color: #ffcccc;
-      font-weight: bold;
-    }
+    .green { background-color: #ccffcc; font-weight: bold; }
+    .yellow { background-color: #ffffcc; font-weight: bold; }
+    .orange { background-color: #ffcc99; font-weight: bold; }
+    .red { background-color: #ffcccc; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>Sebelo Measurements</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Sensor ID</th>
-        <th>Date</th>
-        <th>Time</th>
-        <th>Normal (%)</th>
-        <th>Smoke (%)</th>
-        <th>Temperature (°C)</th>
-        <th>Humidity (%)</th>
-        <th>Pressure (hPa)</th>
-        <th>Battery Level (mV)</th>
-        <th>Button</th>
-      </tr>
-    </thead>
-    <tbody id="sensorTable"></tbody>
-  </table>
+  <div id="leftPanel">
+    <h1>Sebelo Measurements</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Sensor ID</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Normal (%)</th>
+          <th>Smoke (%)</th>
+          <th>Temp (°C)</th>
+          <th>Humidity (%)</th>
+          <th>Pressure</th>
+          <th>Battery</th>
+          <th>Button</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody id="sensorTable"></tbody>
+    </table>
+  </div>
 
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    let map = L.map('map').setView([56.95, 24.1], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let markerMap = {};
+
     async function loadSensors() {
       const res = await fetch('/api/sensors');
       const sensors = await res.json();
+      const locRes = await fetch('/api/map-sensors');
+      const sensorLocations = await locRes.json();
+
+      const locationMap = {};
+      sensorLocations.forEach(s => locationMap[s.sensor_id] = s);
+
       const tbody = document.getElementById('sensorTable');
       tbody.innerHTML = '';
+
+      // Remove previous markers
+      for (const id in markerMap) {
+        map.removeLayer(markerMap[id]);
+      }
+      markerMap = {};
 
       Object.entries(sensors).forEach(([id, data]) => {
         const row = document.createElement('tr');
 
-        // Format time and date with Europe/Riga timezone
         const timeObj = data.time ? new Date(data.time) : null;
         const dateStr = timeObj ? timeObj.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
         const timeStr = timeObj ? timeObj.toLocaleTimeString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
 
-        let gas1 = data.gas1 ?? data.gas1Prob ?? '-';
-        let gas2 = data.gas2 ?? data.gas2Prob ?? '-';
-        let battery = data.supercap_voltage ?? data.superCapVoltage ?? '-';
+        let gas1 = data.gas1 ?? '-';
+        let gas2 = parseInt(data.gas2 ?? 0);
+        let battery = parseInt(data.supercap_voltage ?? 0);
 
-        // Gas1 (Normal) coloring
         let gas1Class = (+gas1 === 100) ? 'green' : '';
-
-        // Gas2 (Smoke) coloring
-        gas2 = parseInt(gas2);
-        let gas2Class = '';
-        if (gas2 === 0) gas2Class = 'green';
-        else if (gas2 <= 10) gas2Class = 'yellow';
-        else if (gas2 <= 50) gas2Class = 'orange';
-        else gas2Class = 'red';
-
-        // Battery coloring
-        battery = parseInt(battery);
-        let batteryClass = '';
-        if (battery > 2000) batteryClass = 'green';
-        else if (battery >= 1000) batteryClass = 'yellow';
-        else if (battery > 0) batteryClass = 'red';
+        let gas2Class = gas2 >= 50 ? 'red' : gas2 >= 20 ? 'orange' : gas2 >= 1 ? 'yellow' : 'green';
+        let batteryClass = battery > 2000 ? 'green' : battery >= 1000 ? 'yellow' : battery > 0 ? 'red' : '';
 
         row.innerHTML = `
           <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
           <td>${dateStr}</td>
           <td>${timeStr}</td>
           <td class="${gas1Class}">${gas1}</td>
-          <td class="${gas2Class}">${data.gas2 ?? '-'}</td>
+          <td class="${gas2Class}">${gas2}</td>
           <td>${data.temperature ?? '-'}</td>
           <td>${data.humidity ?? '-'}</td>
           <td>${data.pressure ?? '-'}</td>
           <td class="${batteryClass}">${battery}</td>
           <td>${data.button_level ?? '-'}</td>
+          <td><a href="/admin?id=${id}" target="_blank"><button>Change</button></a></td>
         `;
-
         tbody.appendChild(row);
+
+        // Pievieno marķieri, ja koordinātes ir zināmas
+        const loc = locationMap[id];
+        if (loc && loc.latitude && loc.longitude) {
+          const marker = L.marker([loc.latitude, loc.longitude])
+            .addTo(map)
+            .bindPopup(`<b>${loc.label || id}</b><br><a href="/sensor/${id}" target="_blank">Open sensor</a>`);
+          markerMap[id] = marker;
+        }
       });
     }
 
-    setInterval(loadSensors, 5000);
     loadSensors();
+    setInterval(loadSensors, 10000); // Automātiska pārlāde ik pēc 10 sek.
   </script>
 </body>
 </html>
