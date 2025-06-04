@@ -104,9 +104,9 @@
       const smokes = [];
 
       data.forEach(d => {
-        const date = new Date(d.timestamp);
-        const dateStr = date.toISOString().split('T')[0];
-        const timeStr = date.toTimeString().split(' ')[0];
+        const dateObj = new Date(d.timestamp);
+        const dateStr = dateObj.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' });
+        const timeStr = dateObj.toLocaleTimeString('lv-LV', { timeZone: 'Europe/Riga' });
 
         timestamps.push(`${dateStr} ${timeStr}`);
         temperatures.push(d.temperature ?? null);
@@ -129,7 +129,6 @@
         document.getElementById('dataTable').appendChild(tr);
       });
 
-      // Reverse arrays so oldest is on the left
       const reversedTimestamps = [...timestamps].reverse();
       const reversedTemperatures = [...temperatures].reverse();
       const reversedHumidities = [...humidities].reverse();
