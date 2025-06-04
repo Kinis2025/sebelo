@@ -8,54 +8,27 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-let db;
+// ✅ MySQL connection (use connection pool)
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-// ✅ Dinamiska MySQL savienojuma atjaunošana
-function handleDisconnect() {
-  db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-  });
-
-  db.connect((err) => {
-    if (err) {
-      console.error('❌ MySQL connection failed:', err);
-      setTimeout(handleDisconnect, 2000); // mēģini vēlreiz pēc 2s
-    } else {
-      console.log('✅ Connected to MySQL database');
-    }
-  });
-
-  db.on('error', (err) => {
-    console.error('⚠️ MySQL error:', err);
-    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      console.warn('🔁 Lost connection. Reconnecting...');
-      handleDisconnect();
-    } else {
-      throw err;
-    }
-  });
-}
-
-handleDisconnect();
-
-// ✅ Webhook no TTN
+// ✅ TTN Webhook - Sensor Data Receive
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids?.device_id;
-    const payload = req.body.uplink_message?.decoded_payload?.decoded;
-
-    if (!payload || typeof payload !== 'object') {
-      console.log('⚠️ No decoded payload. Ignoring.');
-      return res.status(204).send();
-    }
-
+    const payload = req.body.uplink_message?.decoded_payload?.decoded || req.body.uplink_message?.decoded_payload || {};
     const timestamp = new Date().toISOString();
 
     const entry = {
+      time: timestamp,
       gas1: payload.gas1Prob ?? payload.gas1,
       gas2: payload.gas2Prob ?? payload.gas2,
       temperature: payload.temperature,
@@ -65,18 +38,13 @@ app.post('/ttn', (req, res) => {
       button_level: payload.buttonLevel
     };
 
-    // Atteikt, ja nav būtisku datu
-    if (
-      entry.gas1 == null &&
-      entry.temperature == null &&
-      entry.supercap_voltage == null
-    ) {
-      console.log('⚠️ Payload missing key values. Skipping insert.');
-      return res.status(204).send();
+    if (!devId || Object.values(entry).every(val => val === undefined)) {
+      console.warn('⚠️ Tukšs vai nederīgs dati, netika saglabāti');
+      return res.status(400).send('Invalid data');
     }
 
     const query = `
-      INSERT INTO sensor_data
+      INSERT INTO sensor_data 
       (sensor_id, timestamp, gas1, gas2, temperature, humidity, pressure, supercap_voltage, button_level)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
@@ -94,19 +62,20 @@ app.post('/ttn', (req, res) => {
     ], (err) => {
       if (err) {
         console.error('❌ MySQL insert error:', err);
+        res.status(500).send('DB insert error');
       } else {
-        console.log(`✅ Data saved from sensor: ${devId}`);
+        console.log(`✅ Dati saglabāti sensoram: ${devId}`);
+        res.send('OK');
       }
     });
 
-    res.send('OK');
   } catch (err) {
-    console.error('❌ Error processing TTN webhook:', err);
+    console.error('❌ Webhook error:', err);
     res.status(500).send('Internal error');
   }
 });
 
-// ✅ Jaunākie mērījumi no katra sensora
+// ✅ API - Latest measurements for all sensors
 app.get('/api/sensors', (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
@@ -141,15 +110,10 @@ app.get('/api/sensors', (req, res) => {
   });
 });
 
-// ✅ Vēsturiskie dati konkrētam sensoram
+// ✅ API - Historical data for specific sensor
 app.get('/api/sensor/:id', (req, res) => {
   const sensorId = req.params.id;
-  const query = `
-    SELECT * FROM sensor_data
-    WHERE sensor_id = ?
-    ORDER BY timestamp DESC
-    LIMIT 100
-  `;
+  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
 
   db.query(query, [sensorId], (err, results) => {
     if (err) {
@@ -161,11 +125,56 @@ app.get('/api/sensor/:id', (req, res) => {
   });
 });
 
-// ✅ Kalpo HTML lapu konkrētam sensoram
+// ✅ API - Sensor location data for map
+app.get('/api/map-sensors', (req, res) => {
+  db.query('SELECT * FROM sensors', (err, results) => {
+    if (err) {
+      console.error('❌ Error fetching map sensor data:', err);
+      res.status(500).send('Database error');
+    } else {
+      res.json(results);
+    }
+  });
+});
+
+// ✅ API - Update/add sensor location (for admin panel)
+app.post('/api/sensor-location/:id', (req, res) => {
+  const id = req.params.id;
+  const { label, latitude, longitude } = req.body;
+
+  const query = `
+    INSERT INTO sensors (sensor_id, label, latitude, longitude)
+    VALUES (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      label = VALUES(label),
+      latitude = VALUES(latitude),
+      longitude = VALUES(longitude)
+  `;
+
+  db.query(query, [id, label, latitude, longitude], (err) => {
+    if (err) {
+      console.error('❌ Sensor location update error:', err);
+      res.status(500).send('Database error');
+    } else {
+      res.sendStatus(200);
+    }
+  });
+});
+
+// ✅ Routes for frontend pages
 app.get('/sensor/:id', (req, res) => {
   res.sendFile(__dirname + '/public/sensor.html');
 });
 
+app.get('/map', (req, res) => {
+  res.sendFile(__dirname + '/public/map.html');
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(__dirname + '/public/admin.html');
+});
+
+// ✅ Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
