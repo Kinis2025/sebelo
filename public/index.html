@@ -94,17 +94,18 @@
         else if (battery >= 1000) batteryClass = 'yellow';
         else if (battery > 0) batteryClass = 'red';
 
-        row.innerHTML =
-          '<td>' + id + '</td>' +
-          '<td>' + dateStr + '</td>' +
-          '<td>' + timeStr + '</td>' +
-          '<td class="' + gas1Class + '">' + (isNaN(gas1) ? '-' : gas1 + '%') + '</td>' +
-          '<td class="' + gas2Class + '">' + (isNaN(gas2) ? '-' : gas2 + '%') + '</td>' +
-          '<td>' + (data.temperature ?? '-') + '</td>' +
-          '<td>' + (data.humidity ?? '-') + '</td>' +
-          '<td>' + (data.pressure ?? '-') + '</td>' +
-          '<td class="' + batteryClass + '">' + (isNaN(battery) ? '-' : battery) + '</td>' +
-          '<td>' + ((data.buttonLevel ?? 0) === 1 ? '✔️' : '—') + '</td>';
+row.innerHTML = `
+  <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
+  <td>${(data.time || '').split('T')[0]}</td>
+  <td>${(data.time || '').split('T')[1]?.split('.')[0] || ''}</td>
+  <td class="${data.gas1 == 100 ? 'green' : ''}">${data.gas1 ?? '-'}</td>
+  <td class="${data.gas2 >= 50 ? 'red' : data.gas2 >= 20 ? 'orange' : data.gas2 >= 1 ? 'yellow' : 'green'}">${data.gas2 ?? '-'}</td>
+  <td>${data.temperature ?? '-'}</td>
+  <td>${data.humidity ?? '-'}</td>
+  <td>${data.pressure ?? '-'}</td>
+  <td class="${data.supercap_voltage > 2000 ? 'green' : data.supercap_voltage > 1000 ? 'yellow' : 'red'}">${data.supercap_voltage ?? '-'}</td>
+  <td>${data.button_level ?? '-'}</td>
+`;
 
         tbody.appendChild(row);
       });
