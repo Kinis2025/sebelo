@@ -30,6 +30,23 @@
       min-height: 400px;
       border: 1px solid #aaa;
     }
+
+    @media (max-width: 768px) {
+      #main {
+        flex-direction: column;
+        height: auto;
+      }
+      #leftPanel, #mapContainer {
+        width: 100%;
+        padding: 10px;
+      }
+      #map {
+        height: 300px;
+        min-height: unset;
+        margin-top: 10px;
+      }
+    }
+
     h1 {
       text-align: center;
     }
@@ -47,6 +64,10 @@
     .yellow { background-color: #ffffcc; font-weight: bold; }
     .orange { background-color: #ffcc99; font-weight: bold; }
     .red { background-color: #ffcccc; font-weight: bold; }
+    tr:hover {
+      background-color: #f0f0f0;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -161,7 +182,7 @@
 
         if (location?.latitude && location?.longitude) {
           const icon = createColoredIcon(gas2Class);
-          const popup = `
+          const popupText = `
             <b>${id}</b><br>
             Smoke: ${data.gas2 ?? '-'}%<br>
             Temp: ${data.temperature ?? '-'}°C<br>
@@ -170,8 +191,14 @@
             Time: ${dateStr} ${timeStr}
           `;
           const marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map);
-          marker.bindPopup(popup);
+          marker.bindPopup(popupText);
           markerMap[id] = marker;
+
+          // ✅ Klikšķis uz rindu = fokusē šo marķieri
+          row.addEventListener('click', () => {
+            map.setView([location.latitude, location.longitude], 14);
+            marker.openPopup();
+          });
         }
       });
     }
