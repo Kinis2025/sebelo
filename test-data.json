@@ -1,0 +1,14 @@
+{
+  "end_device_ids": {
+    "device_id": "test-sensor-1"
+  },
+  "uplink_message": {
+    "decoded_payload": {
+      "gas1": 21,
+      "gas2": 78,
+      "temperature": 23.5,
+      "humidity": 50,
+      "pressure": 1011
+    }
+  }
+}

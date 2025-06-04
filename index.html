@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <title>Sensoru dati</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            padding: 6px;
+            border: 1px solid black;
+            text-align: center;
+        }
+        .alert {
+            background-color: #ffcccc;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sensoru dati</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Sensor ID</th>
+                <th>Laiks</th>
+                <th>Gāze 1</th>
+                <th>Gāze 2</th>
+                <th>Temperatūra (°C)</th>
+                <th>Mitrums (%)</th>
+                <th>Spiediens (hPa)</th>
+            </tr>
+        </thead>
+        <tbody id="sensorTable"></tbody>
+    </table>
+
+    <script>
+        async function loadSensors() {
+            const res = await fetch('/api/sensors');
+            const sensors = await res.json();
+            const tbody = document.getElementById('sensorTable');
+            tbody.innerHTML = '';
+
+            Object.entries(sensors).forEach(([id, data]) => {
+                const row = document.createElement('tr');
+
+                let gas1Class = (data.gas1 ?? 0) > 80 ? 'alert' : '';
+                let gas2Class = (data.gas2 ?? 0) > 80 ? 'alert' : '';
+
+                row.innerHTML =
+                    '<td>' + id + '</td>' +
+                    '<td>' + (data.time || '') + '</td>' +
+                    '<td class="' + gas1Class + '">' + (data.gas1 ?? '-') + '</td>' +
+                    '<td class="' + gas2Class + '">' + (data.gas2 ?? '-') + '</td>' +
+                    '<td>' + (data.temperature ?? '-') + '</td>' +
+                    '<td>' + (data.humidity ?? '-') + '</td>' +
+                    '<td>' + (data.pressure ?? '-') + '</td>';
+
+                tbody.appendChild(row);
+            });
+        }
+
+        setInterval(loadSensors, 5000);
+        loadSensors();
+    </script>
+</body>
+</html>
