@@ -27,13 +27,33 @@ db.connect((err) => {
   }
 });
 
-// ✅ Webhook no TTN
+// ✅ Webhook no TTN ar validāciju
 app.post('/ttn', (req, res) => {
   try {
-    const devId = req.body.end_device_ids.device_id;
-    const payload = req.body.uplink_message.decoded_payload?.decoded || req.body.uplink_message.decoded_payload || {};
-    const timestamp = new Date().toISOString();
+    const devId = req.body.end_device_ids?.device_id;
+    const rawPayload = req.body.uplink_message?.decoded_payload;
 
+    // ❗ Pārbaude — ja nav decoded_payload, tad ignorē
+    if (!rawPayload || typeof rawPayload !== 'object') {
+      console.log('⚠️ Ziņa bez decoded_payload. Izlaižam.');
+      return res.status(204).send(); // Bez satura
+    }
+
+    // Atbalsts gan ar, gan bez .decoded ligzdas
+    const payload = rawPayload.decoded ?? rawPayload;
+
+    // ❗ Ja nav būtisko lauku, arī izlaiž
+    if (
+      payload.gas1Prob == null &&
+      payload.gas1 == null &&
+      payload.temperature == null &&
+      payload.superCapVoltage == null
+    ) {
+      console.log('⚠️ decoded_payload nesatur datus. Izlaižam.');
+      return res.status(204).send();
+    }
+
+    const timestamp = new Date().toISOString();
     const entry = {
       time: timestamp,
       gas1: payload.gas1Prob ?? payload.gas1,
@@ -67,7 +87,7 @@ app.post('/ttn', (req, res) => {
       if (err) {
         console.error('❌ MySQL insert error:', err);
       } else {
-        console.log(`✅ Data saved for sensor: ${devId}`);
+        console.log(`✅ Dati saglabāti no sensor: ${devId}`);
       }
     });
 
