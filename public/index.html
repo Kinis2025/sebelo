@@ -9,16 +9,22 @@
       margin: 0;
       font-family: Arial, sans-serif;
       display: flex;
+      flex-direction: row;
       height: 100vh;
     }
     #leftPanel {
       width: 55%;
       padding: 20px;
+      padding-right: 30px;
       overflow-y: auto;
       border-right: 1px solid #ccc;
     }
     #map {
-      flex: 1;
+      width: 45%;
+      height: 50vh;
+      margin-top: 20px;
+      margin-right: 20px;
+      border: 1px solid #aaa;
     }
     h1 {
       text-align: center;
@@ -60,9 +66,8 @@
       </thead>
       <tbody id="sensorTable"></tbody>
     </table>
+    <div id="map"></div>
   </div>
-
-  <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
@@ -72,6 +77,31 @@
     }).addTo(map);
 
     let markerMap = {};
+
+    function getColorClass(smoke) {
+      if (smoke >= 50) return 'red';
+      if (smoke >= 20) return 'orange';
+      if (smoke >= 1) return 'yellow';
+      return 'green';
+    }
+
+    function createColoredIcon(colorClass) {
+      const colors = {
+        green: '#4CAF50',
+        yellow: '#FFEB3B',
+        orange: '#FF9800',
+        red: '#F44336'
+      };
+      return L.divIcon({
+        html: `<div style="
+          background:${colors[colorClass]};
+          width:16px;height:16px;
+          border-radius:50%;
+          border:2px solid #333;"></div>`,
+        className: '',
+        iconSize: [16, 16]
+      });
+    }
 
     async function loadSensors() {
       const res = await fetch('/api/sensors');
@@ -85,55 +115,60 @@
       const tbody = document.getElementById('sensorTable');
       tbody.innerHTML = '';
 
-      // Remove previous markers
       for (const id in markerMap) {
         map.removeLayer(markerMap[id]);
       }
       markerMap = {};
 
       Object.entries(sensors).forEach(([id, data]) => {
+        const location = locationMap[id];
         const row = document.createElement('tr');
 
         const timeObj = data.time ? new Date(data.time) : null;
         const dateStr = timeObj ? timeObj.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
         const timeStr = timeObj ? timeObj.toLocaleTimeString('lv-LV', { timeZone: 'Europe/Riga' }) : '-';
 
-        let gas1 = data.gas1 ?? '-';
-        let gas2 = parseInt(data.gas2 ?? 0);
-        let battery = parseInt(data.supercap_voltage ?? 0);
+        const gas1Class = (+data.gas1 === 100) ? 'green' : '';
+        const gas2 = +data.gas2;
+        const gas2Class = gas2 >= 50 ? 'red' : gas2 >= 20 ? 'orange' : gas2 >= 1 ? 'yellow' : 'green';
 
-        let gas1Class = (+gas1 === 100) ? 'green' : '';
-        let gas2Class = gas2 >= 50 ? 'red' : gas2 >= 20 ? 'orange' : gas2 >= 1 ? 'yellow' : 'green';
-        let batteryClass = battery > 2000 ? 'green' : battery >= 1000 ? 'yellow' : battery > 0 ? 'red' : '';
+        const battery = +data.supercap_voltage;
+        const batteryClass = battery > 2000 ? 'green' : battery >= 1000 ? 'yellow' : 'red';
 
         row.innerHTML = `
           <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
           <td>${dateStr}</td>
           <td>${timeStr}</td>
-          <td class="${gas1Class}">${gas1}</td>
-          <td class="${gas2Class}">${gas2}</td>
+          <td class="${gas1Class}">${data.gas1 ?? '-'}</td>
+          <td class="${gas2Class}">${data.gas2 ?? '-'}</td>
           <td>${data.temperature ?? '-'}</td>
           <td>${data.humidity ?? '-'}</td>
           <td>${data.pressure ?? '-'}</td>
-          <td class="${batteryClass}">${battery}</td>
+          <td class="${batteryClass}">${data.supercap_voltage ?? '-'}</td>
           <td>${data.button_level ?? '-'}</td>
           <td><a href="/admin?id=${id}" target="_blank"><button>Change</button></a></td>
         `;
         tbody.appendChild(row);
 
-        // Pievieno marķieri, ja koordinātes ir zināmas
-        const loc = locationMap[id];
-        if (loc && loc.latitude && loc.longitude) {
-          const marker = L.marker([loc.latitude, loc.longitude])
-            .addTo(map)
-            .bindPopup(`<b>${loc.label || id}</b><br><a href="/sensor/${id}" target="_blank">Open sensor</a>`);
+        if (location?.latitude && location?.longitude) {
+          const icon = createColoredIcon(gas2Class);
+          const popup = `
+            <b>${id}</b><br>
+            Smoke: ${data.gas2 ?? '-'}%<br>
+            Temp: ${data.temperature ?? '-'}°C<br>
+            Humidity: ${data.humidity ?? '-'}%<br>
+            Pressure: ${data.pressure ?? '-'} hPa<br>
+            Time: ${dateStr} ${timeStr}
+          `;
+          const marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map);
+          marker.bindPopup(popup);
           markerMap[id] = marker;
         }
       });
     }
 
     loadSensors();
-    setInterval(loadSensors, 10000); // Automātiska pārlāde ik pēc 10 sek.
+    setInterval(loadSensors, 10000);
   </script>
 </body>
 </html>
