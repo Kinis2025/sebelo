@@ -31,6 +31,7 @@
                 <th>Temperatūra (°C)</th>
                 <th>Mitrums (%)</th>
                 <th>Spiediens (hPa)</th>
+                <th>Superkapa (mV)</th>
             </tr>
         </thead>
         <tbody id="sensorTable"></tbody>
@@ -46,17 +47,20 @@
             Object.entries(sensors).forEach(([id, data]) => {
                 const row = document.createElement('tr');
 
-                let gas1Class = (data.gas1 ?? 0) > 80 ? 'alert' : '';
-                let gas2Class = (data.gas2 ?? 0) > 80 ? 'alert' : '';
+                let gas1 = data.gas1 ?? data.gas1Prob ?? '-';
+                let gas2 = data.gas2 ?? data.gas2Prob ?? '-';
+                let gas1Class = (+gas1 > 80) ? 'alert' : '';
+                let gas2Class = (+gas2 > 80) ? 'alert' : '';
 
                 row.innerHTML =
                     '<td>' + id + '</td>' +
                     '<td>' + (data.time || '') + '</td>' +
-                    '<td class="' + gas1Class + '">' + (data.gas1 ?? '-') + '</td>' +
-                    '<td class="' + gas2Class + '">' + (data.gas2 ?? '-') + '</td>' +
+                    '<td class="' + gas1Class + '">' + gas1 + '</td>' +
+                    '<td class="' + gas2Class + '">' + gas2 + '</td>' +
                     '<td>' + (data.temperature ?? '-') + '</td>' +
                     '<td>' + (data.humidity ?? '-') + '</td>' +
-                    '<td>' + (data.pressure ?? '-') + '</td>';
+                    '<td>' + (data.pressure ?? '-') + '</td>' +
+                    '<td>' + (data.superCapVoltage ?? '-') + '</td>';
 
                 tbody.appendChild(row);
             });
