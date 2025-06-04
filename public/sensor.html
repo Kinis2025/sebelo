@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sensor Details</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid black; padding: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1 id="header">Sensor Data</h1>
+  <canvas id="chart" height="100"></canvas>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Temperature</th>
+        <th>Humidity</th>
+        <th>Gas 1</th>
+        <th>Gas 2</th>
+        <th>Pressure</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <script>
+    const sensorId = window.location.pathname.split('/').pop();
+    document.getElementById('header').textContent = `Sensor: ${sensorId}`;
+
+    async function loadSensorData() {
+      const res = await fetch(`/api/sensor/${sensorId}`);
+      const data = await res.json();
+
+      const table = document.getElementById('tableBody');
+      const labels = [];
+      const temps = [];
+
+      data.forEach(row => {
+        table.innerHTML += `
+          <tr>
+            <td>${row.timestamp}</td>
+            <td>${row.temperature ?? '-'}</td>
+            <td>${row.humidity ?? '-'}</td>
+            <td>${row.gas1 ?? '-'}</td>
+            <td>${row.gas2 ?? '-'}</td>
+            <td>${row.pressure ?? '-'}</td>
+          </tr>
+        `;
+        labels.push(row.timestamp);
+        temps.push(row.temperature);
+      });
+
+      new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+          labels: labels.reverse(),
+          datasets: [{
+            label: 'Temperature (°C)',
+            data: temps.reverse(),
+            borderColor: 'blue',
+            fill: false
+          }]
+        }
+      });
+    }
+
+    loadSensorData();
+  </script>
+</body>
+</html>
