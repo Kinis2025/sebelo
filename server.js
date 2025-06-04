@@ -31,8 +31,7 @@ db.connect((err) => {
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids.device_id;
-const dp = req.body.uplink_message.decoded_payload;
-const payload = dp?.decoded ?? dp ?? {};
+    const payload = req.body.uplink_message.decoded_payload?.decoded || req.body.uplink_message.decoded_payload || {};
     const timestamp = new Date().toISOString();
 
     const entry = {
@@ -48,7 +47,6 @@ const payload = dp?.decoded ?? dp ?? {};
 
     sensorData[devId] = entry;
 
-    // ✅ Saglabā datubāzē
     const query = `
       INSERT INTO sensor_data
       (sensor_id, timestamp, gas1, gas2, temperature, humidity, pressure, supercap_voltage, button_level)
@@ -80,7 +78,7 @@ const payload = dp?.decoded ?? dp ?? {};
   }
 });
 
-// ✅ Pēdējie mērījumi no datubāzes visiem sensoriem
+// ✅ Galvenajai lapai: pēdējie mērījumi no DB
 app.get('/api/sensors', (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
@@ -115,8 +113,22 @@ app.get('/api/sensors', (req, res) => {
   });
 });
 
+// ✅ Vēsturiskie dati konkrētam sensoram
+app.get('/api/sensor/:id', (req, res) => {
+  const sensorId = req.params.id;
+  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
 
-// ✅ Nosūta vēstures HTML failu, kad atver lapu par sensoru
+  db.query(query, [sensorId], (err, results) => {
+    if (err) {
+      console.error('❌ Error fetching history:', err);
+      res.status(500).send('Database error');
+    } else {
+      res.json(results);
+    }
+  });
+});
+
+// ✅ Nosūta sensor.html kad atver lapu
 app.get('/sensor/:id', (req, res) => {
   res.sendFile(__dirname + '/public/sensor.html');
 });
