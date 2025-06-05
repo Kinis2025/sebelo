@@ -8,42 +8,21 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ✅ Static un parsēšana
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-let db;
-
-// ✅ MySQL reconnect
-function handleDisconnect() {
-  db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-  });
-
-  db.connect(err => {
-    if (err) {
-      console.error('❌ Error connecting to MySQL:', err);
-      setTimeout(handleDisconnect, 2000);
-    } else {
-      console.log('✅ Connected to MySQL');
-    }
-  });
-
-  db.on('error', err => {
-    console.error('❌ MySQL error:', err);
-    if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.fatal) {
-      console.log('🔁 Reconnecting to MySQL...');
-      handleDisconnect();
-    } else {
-      throw err;
-    }
-  });
-}
-
-handleDisconnect();
+// ✅ Izmanto connection pool
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
 // ✅ TTN Webhook
 app.post('/ttn', (req, res) => {
@@ -93,7 +72,7 @@ app.post('/ttn', (req, res) => {
   }
 });
 
-// ✅ Jaunākie sensori
+// ✅ Jaunākie dati
 app.get('/api/sensors', (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
@@ -143,7 +122,7 @@ app.get('/api/sensor/:id', (req, res) => {
   });
 });
 
-// ✅ Sensoru kartes koordinātas
+// ✅ Sensoru koordinātas kartes vajadzībām
 app.get('/api/map-sensors', (req, res) => {
   const query = 'SELECT * FROM sensors';
 
@@ -156,7 +135,7 @@ app.get('/api/map-sensors', (req, res) => {
   });
 });
 
-// ✅ Saglabā vai atjauno sensora koordinātas
+// ✅ Atjauno vai ievieto koordinātas
 app.post('/api/update-location', (req, res) => {
   const { sensor_id, label, latitude, longitude } = req.body;
   const query = `
@@ -174,7 +153,7 @@ app.post('/api/update-location', (req, res) => {
   });
 });
 
-// ✅ Vēja dati no OpenWeatherMap
+// ✅ Vēja dati no OWM
 app.get('/api/wind/:sensorId', (req, res) => {
   const sensorId = req.params.sensorId;
   const apiKey = process.env.OWM_API_KEY;
@@ -205,19 +184,18 @@ app.get('/api/wind/:sensorId', (req, res) => {
   });
 });
 
-// ✅ Lapas
+// ✅ Statiskās lapas
 app.get('/sensor/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/sensor.html'));
 });
-
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin.html'));
 });
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
+// ✅ Startē serveri
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
