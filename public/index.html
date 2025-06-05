@@ -2,230 +2,190 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Sebelo Measurements</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sebelo Sensor Overview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-    }
-
-    h1 {
-      text-align: center;
-      margin: 12px 0;
-    }
-
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 10px;
-    }
-
-    .table-container {
-      flex: 1 1 55%;
-      min-width: 320px;
-    }
-
-    .map-container {
-      flex: 1 1 40%;
-      min-width: 320px;
-      height: 600px;
-      position: relative;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-
-    th, td {
-      padding: 6px;
-      border: 1px solid black;
-      text-align: center;
-    }
-
-    .green { background-color: #ccffcc; font-weight: bold; }
-    .yellow { background-color: #ffffcc; font-weight: bold; }
-    .orange { background-color: #ffcc99; font-weight: bold; }
-    .red { background-color: #ffcccc; font-weight: bold; }
-
-    #map {
-      height: 100%;
-      width: 100%;
-    }
-
-    .wind-box {
+    body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: row; flex-wrap: wrap; }
+    .table-container { flex: 1 1 50%; padding: 15px; box-sizing: border-box; }
+    .map-container { flex: 1 1 50%; height: 100vh; position: relative; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 6px; border: 1px solid #ccc; text-align: center; font-size: 14px; }
+    th { background-color: #f5f5f5; }
+    .green { background-color: #ccffcc; }
+    .yellow { background-color: #ffffcc; }
+    .orange { background-color: #ffcc99; }
+    .red { background-color: #ffcccc; }
+    #map { width: 100%; height: 100%; }
+    .wind-info {
       position: absolute;
       top: 10px;
       right: 10px;
-      background: rgba(255,255,255,0.9);
-      border: 1px solid #aaa;
-      padding: 8px 12px;
+      background: white;
+      padding: 8px;
       border-radius: 6px;
-      font-size: 14px;
-      text-align: center;
-      z-index: 999;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      z-index: 1000;
     }
-
     .wind-arrow {
       display: inline-block;
-      width: 20px;
-      height: 20px;
-      margin-bottom: 4px;
-      background: black;
-      clip-path: polygon(50% 0%, 100% 100%, 50% 80%, 0% 100%);
+      width: 24px;
+      height: 24px;
       transform-origin: center;
     }
-
     @media (max-width: 768px) {
-      .container {
-        flex-direction: column;
+      .table-container, .map-container {
+        flex: 1 1 100%;
+        height: auto;
       }
-
-      .map-container {
-        height: 400px;
-      }
-    }
-
-    .popup-id {
-      color: blue;
-      text-decoration: underline;
-      cursor: pointer;
+      .map-container { height: 400px; }
     }
   </style>
 </head>
 <body>
-  <h1>Sebelo Measurements</h1>
-
-  <div class="container">
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Sensor ID</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Normal (%)</th>
-            <th>Smoke (%)</th>
-            <th>Temp (°C)</th>
-            <th>Humidity (%)</th>
-            <th>Pressure (hPa)</th>
-            <th>Battery</th>
-            <th>Button</th>
-            <th>Change coordinates</th>
-          </tr>
-        </thead>
-        <tbody id="sensorTable"></tbody>
-      </table>
-    </div>
-
-    <div class="map-container">
-      <div id="map"></div>
-      <div class="wind-box" id="windInfo">
-        <div id="windArrow" class="wind-arrow"></div>
-        <div id="windText">--</div>
-      </div>
-    </div>
+  <div class="table-container">
+    <h2>Sensors</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Sensor ID</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Smoke (%)</th>
+          <th>Temp (°C)</th>
+          <th>Humidity (%)</th>
+          <th>Pressure (hPa)</th>
+          <th>Battery (mV)</th>
+          <th>Change coordinates</th>
+        </tr>
+      </thead>
+      <tbody id="sensorTable"></tbody>
+    </table>
   </div>
 
+  <div class="map-container">
+    <div class="wind-info">
+      <label for="sensorSelect">Wind data from:</label>
+      <select id="sensorSelect"></select>
+      <div>
+        <img id="windArrow" class="wind-arrow" src="arrow.svg" alt="wind" />
+        <span id="windData">--</span>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet"></script>
   <script>
-    const OWM_KEY = "a50b25ff35ae650ef4db95bb3db5f4f1";
-    const windTextEl = document.getElementById("windText");
-    const windArrowEl = document.getElementById("windArrow");
+    const tableBody = document.getElementById('sensorTable');
+    const sensorSelect = document.getElementById('sensorSelect');
+    const windArrow = document.getElementById('windArrow');
+    const windData = document.getElementById('windData');
+    let map = L.map('map').setView([56.95, 24.1], 8);
+    let markers = {};
 
-    const windDirectionText = deg => {
-      const dirs = ["Z", "ZZA", "ZA", "AZA", "A", "ADA", "DA", "DZA"];
-      return dirs[Math.round(deg / 45) % 8];
-    };
-
-    const getSmokeColor = val => {
-      if (val >= 50) return "red";
-      if (val >= 20) return "orange";
-      if (val >= 1) return "yellow";
-      return "green";
-    };
-
-    const createColoredIcon = color => L.divIcon({
-      className: "",
-      html: `<div style="width:16px;height:16px;background:${color};border-radius:50%;border:2px solid black;"></div>`,
-      iconSize: [16, 16]
-    });
-
-    let map = L.map('map').setView([56.95, 24.1], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     async function loadData() {
-      const [sensorRes, locRes] = await Promise.all([
+      const [sensorRes, coordRes] = await Promise.all([
         fetch('/api/sensors'),
         fetch('/api/map-sensors')
       ]);
-
       const sensors = await sensorRes.json();
-      const locations = await locRes.json();
-      const tbody = document.getElementById('sensorTable');
-      tbody.innerHTML = '';
+      const coords = await coordRes.json();
 
-      for (const sensorId in sensors) {
-        const data = sensors[sensorId];
-        const loc = locations.find(l => l.sensor_id === sensorId);
-        if (!loc || !loc.latitude || !loc.longitude) continue;
+      tableBody.innerHTML = '';
+      sensorSelect.innerHTML = '';
+      for (const id in sensors) {
+        const d = sensors[id];
+        const coord = coords[id];
+        const t = new Date(d.time);
+        const dateStr = t.toLocaleDateString('en-GB');
+        const timeStr = t.toLocaleTimeString('en-GB');
 
-        const d = new Date(data.time);
-        const dateStr = d.toLocaleDateString('lv-LV');
-        const timeStr = d.toLocaleTimeString('lv-LV');
-
-        // Tabula
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><a href="/sensor/${sensorId}" target="_blank">${sensorId}</a></td>
+        // Table
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
           <td>${dateStr}</td>
           <td>${timeStr}</td>
-          <td class="${data.gas1 == 100 ? 'green' : ''}">${data.gas1 ?? '-'}</td>
-          <td class="${getSmokeColor(data.gas2)}">${data.gas2 ?? '-'}</td>
-          <td>${data.temperature ?? '-'}</td>
-          <td>${data.humidity ?? '-'}</td>
-          <td>${data.pressure ?? '-'}</td>
-          <td class="${data.supercap_voltage > 2000 ? 'green' : data.supercap_voltage > 1000 ? 'yellow' : 'red'}">${data.supercap_voltage ?? '-'}</td>
-          <td>${data.button_level ?? '-'}</td>
-          <td><button onclick="window.location.href='/admin'">Change</button></td>
+          <td class="${getSmokeClass(d.gas2)}">${d.gas2 ?? '-'}</td>
+          <td>${d.temperature ?? '-'}</td>
+          <td>${d.humidity ?? '-'}</td>
+          <td>${d.pressure ?? '-'}</td>
+          <td>${d.supercap_voltage ?? '-'}</td>
+          <td><a href="/admin.html?id=${id}" target="_blank">Edit</a></td>
         `;
-        tbody.appendChild(tr);
+        tableBody.appendChild(row);
 
-        // Vējš
-        const weather = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${loc.latitude}&lon=${loc.longitude}&appid=${OWM_KEY}&units=metric`).then(r => r.json());
-        const windSpeed = weather.wind?.speed ?? 0;
-        const windDeg = weather.wind?.deg ?? 0;
-        const windTxt = windDirectionText(windDeg);
+        // Marker
+        if (coord && coord.lat && coord.lng) {
+          if (markers[id]) map.removeLayer(markers[id]);
+          const color = getSmokeClass(d.gas2);
+          const icon = L.divIcon({ html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>` });
+          const popup = `<strong><a href="/sensor/${id}" target="_blank">${id}</a></strong><br>
+            Smoke: ${d.gas2 ?? '-'}%<br>
+            Temp: ${d.temperature ?? '-'} °C<br>
+            Humidity: ${d.humidity ?? '-'}%<br>
+            Pressure: ${d.pressure ?? '-'} hPa<br>
+            Time: ${dateStr} ${timeStr}`;
+          const marker = L.marker([coord.lat, coord.lng], { icon }).bindPopup(popup);
+          marker.addTo(map);
+          markers[id] = marker;
+        }
 
-        windArrowEl.style.transform = `rotate(${windDeg}deg)`;
-        windTextEl.textContent = `💨 ${windSpeed} m/s ${windTxt}`;
+        // Dropdown
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = id;
+        sensorSelect.appendChild(opt);
+      }
 
-        // Marķieris
-        const color = getSmokeColor(data.gas2);
-        const icon = createColoredIcon(color);
+      loadWindData(sensorSelect.value);
+    }
 
-        const popup = `
-          <div>
-            <span class="popup-id" onclick="window.location='/sensor/${sensorId}'">${sensorId}</span><br>
-            Smoke: ${data.gas2}%<br>
-            Temp: ${data.temperature}°C<br>
-            Humidity: ${data.humidity}%<br>
-            Pressure: ${data.pressure}<br>
-            Time: ${dateStr} ${timeStr}
-          </div>
-        `;
+    function getSmokeClass(smoke) {
+      if (smoke >= 50) return 'red';
+      if (smoke >= 20) return 'orange';
+      if (smoke >= 1) return 'yellow';
+      return 'green';
+    }
 
-        L.marker([loc.latitude, loc.longitude], { icon }).addTo(map).bindPopup(popup);
+    async function loadWindData(sensorId) {
+      const coordRes = await fetch('/api/map-sensors');
+      const coords = await coordRes.json();
+      const coord = coords[sensorId];
+      if (!coord) return;
+
+      const apiKey = 'a50b25ff35ae650ef4db95bb3db5f4f1';
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${coord.lat}&lon=${coord.lng}&appid=${apiKey}&units=metric`;
+
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        const wind = json.wind;
+        if (wind) {
+          windData.textContent = `${wind.speed} m/s ${degToCompass(wind.deg)}`;
+          windArrow.style.transform = `rotate(${wind.deg}deg)`;
+        }
+      } catch (e) {
+        windData.textContent = 'No data';
       }
     }
 
-    loadData();
+    function degToCompass(num) {
+      const val = Math.floor((num / 22.5) + 0.5);
+      const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                   "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+      return arr[val % 16];
+    }
+
+    sensorSelect.addEventListener('change', () => {
+      loadWindData(sensorSelect.value);
+    });
+
     setInterval(loadData, 60000);
+    loadData();
   </script>
 </body>
 </html>
