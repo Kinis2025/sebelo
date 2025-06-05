@@ -8,11 +8,10 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ Static un parsēšana
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// ✅ Izmanto connection pool
+// ✅ Connection pool ar keep-alive un promisified queries
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -24,13 +23,26 @@ const db = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
-});
+}).promise();
+
+// ✅ Ping datubāzei reizi 1 minūtē, lai neatslēdzas
+setInterval(() => {
+  db.query('SELECT 1').catch(err => {
+    console.error('❌ MySQL ping error:', err);
+  });
+}, 60000);
 
 // ✅ TTN Webhook
-app.post('/ttn', (req, res) => {
+app.post('/ttn', async (req, res) => {
   try {
-const devId = req.body.data?.end_device_ids?.device_id;
-const payload = req.body.data?.uplink_message?.decoded_payload?.decoded || req.body.data?.uplink_message?.decoded_payload || {};
+    const devId = req.body?.end_device_ids?.device_id;
+    if (!devId) {
+      console.warn('⚠️ Webhook without device_id!');
+      return res.status(400).send('Missing device_id');
+    }
+
+    const payload = req.body?.uplink_message?.decoded_payload?.decoded ||
+                    req.body?.uplink_message?.decoded_payload || {};
     const timestamp = new Date().toISOString();
 
     const entry = {
@@ -49,7 +61,7 @@ const payload = req.body.data?.uplink_message?.decoded_payload?.decoded || req.b
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    db.query(query, [
+    await db.query(query, [
       devId,
       timestamp,
       entry.gas1,
@@ -59,14 +71,9 @@ const payload = req.body.data?.uplink_message?.decoded_payload?.decoded || req.b
       entry.pressure,
       entry.supercap_voltage,
       entry.button_level
-    ], (err) => {
-      if (err) {
-        console.error('❌ MySQL insert error:', err);
-      } else {
-        console.log(`✅ Dati saglabāti sensoram: ${devId}`);
-      }
-    });
+    ]);
 
+    console.log(`✅ Dati saglabāti sensoram: ${devId}`);
     res.send('OK');
   } catch (err) {
     console.error('❌ Webhook processing error:', err);
@@ -75,7 +82,7 @@ const payload = req.body.data?.uplink_message?.decoded_payload?.decoded || req.b
 });
 
 // ✅ Jaunākie dati
-app.get('/api/sensors', (req, res) => {
+app.get('/api/sensors', async (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
     INNER JOIN (
@@ -86,12 +93,8 @@ app.get('/api/sensors', (req, res) => {
     ON sd.sensor_id = latest_data.sensor_id AND sd.timestamp = latest_data.latest
   `;
 
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('❌ Error fetching latest measurements:', err);
-      return res.status(500).send('Database error');
-    }
-
+  try {
+    const [results] = await db.query(query);
     const response = {};
     results.forEach(row => {
       response[row.sensor_id] = {
@@ -105,85 +108,88 @@ app.get('/api/sensors', (req, res) => {
         button_level: row.button_level
       };
     });
-
     res.json(response);
-  });
+  } catch (err) {
+    console.error('❌ Error fetching latest measurements:', err);
+    res.status(500).send('Database error');
+  }
 });
 
 // ✅ Vēsturiskie dati
-app.get('/api/sensor/:id', (req, res) => {
-  const sensorId = req.params.id;
-  const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
-
-  db.query(query, [sensorId], (err, results) => {
-    if (err) {
-      console.error('❌ Error fetching history:', err);
-      return res.status(500).send('Database error');
-    }
+app.get('/api/sensor/:id', async (req, res) => {
+  try {
+    const [results] = await db.query(
+      'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100',
+      [req.params.id]
+    );
     res.json(results);
-  });
+  } catch (err) {
+    console.error('❌ Error fetching history:', err);
+    res.status(500).send('Database error');
+  }
 });
 
-// ✅ Sensoru koordinātas kartes vajadzībām
-app.get('/api/map-sensors', (req, res) => {
-  const query = 'SELECT * FROM sensors';
-
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('❌ Error fetching sensor locations:', err);
-      return res.status(500).send('Database error');
-    }
+// ✅ Sensoru koordinātas
+app.get('/api/map-sensors', async (req, res) => {
+  try {
+    const [results] = await db.query('SELECT * FROM sensors');
     res.json(results);
-  });
+  } catch (err) {
+    console.error('❌ Error fetching sensor locations:', err);
+    res.status(500).send('Database error');
+  }
 });
 
-// ✅ Atjauno vai ievieto koordinātas
-app.post('/api/update-location', (req, res) => {
+// ✅ Atjauno/ievieto koordinātas
+app.post('/api/update-location', async (req, res) => {
   const { sensor_id, label, latitude, longitude } = req.body;
-  const query = `
-    INSERT INTO sensors (sensor_id, label, latitude, longitude)
-    VALUES (?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE label = VALUES(label), latitude = VALUES(latitude), longitude = VALUES(longitude)
-  `;
 
-  db.query(query, [sensor_id, label, latitude, longitude], (err) => {
-    if (err) {
-      console.error('❌ Error updating coordinates:', err);
-      return res.status(500).send('Database error');
-    }
+  try {
+    await db.query(`
+      INSERT INTO sensors (sensor_id, label, latitude, longitude)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        label = VALUES(label),
+        latitude = VALUES(latitude),
+        longitude = VALUES(longitude)
+    `, [sensor_id, label, latitude, longitude]);
+
     res.send('OK');
-  });
+  } catch (err) {
+    console.error('❌ Error updating coordinates:', err);
+    res.status(500).send('Database error');
+  }
 });
 
 // ✅ Vēja dati no OWM
-app.get('/api/wind/:sensorId', (req, res) => {
+app.get('/api/wind/:sensorId', async (req, res) => {
   const sensorId = req.params.sensorId;
   const apiKey = process.env.OWM_API_KEY;
 
-  const query = 'SELECT latitude, longitude FROM sensors WHERE sensor_id = ? LIMIT 1';
+  try {
+    const [results] = await db.query(
+      'SELECT latitude, longitude FROM sensors WHERE sensor_id = ? LIMIT 1',
+      [sensorId]
+    );
 
-  db.query(query, [sensorId], async (err, results) => {
-    if (err || results.length === 0) {
-      console.error('❌ Sensor location error:', err || 'Not found');
-      return res.status(500).send('Sensor location not found');
+    if (!results.length) {
+      return res.status(404).send('Sensor location not found');
     }
 
     const { latitude, longitude } = results[0];
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`;
+    const response = await axios.get(url);
+    const wind = response.data.wind;
 
-    try {
-      const response = await axios.get(url);
-      const wind = response.data.wind;
-      res.json({
-        speed: wind.speed,
-        deg: wind.deg,
-        gust: wind.gust || null
-      });
-    } catch (apiError) {
-      console.error('❌ OpenWeatherMap API error:', apiError.message);
-      res.status(500).send('Failed to fetch wind data');
-    }
-  });
+    res.json({
+      speed: wind.speed,
+      deg: wind.deg,
+      gust: wind.gust || null
+    });
+  } catch (err) {
+    console.error('❌ OpenWeatherMap API error:', err.message);
+    res.status(500).send('Failed to fetch wind data');
+  }
 });
 
 // ✅ Statiskās lapas
