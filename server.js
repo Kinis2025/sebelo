@@ -143,7 +143,7 @@ app.get('/api/sensor/:id', (req, res) => {
 
 // Sensoru koordinātes priekš kartes
 app.get('/api/map-sensors', (req, res) => {
-  const query = 'SELECT * FROM sensor_locations';
+  const query = 'SELECT * FROM sensors';
 
   db.query(query, (err, results) => {
     if (err) {
