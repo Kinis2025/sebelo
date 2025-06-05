@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2');
 const path = require('path');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ app.use(express.static('public'));
 
 let db;
 
+// ✅ MySQL reconnect
 function handleDisconnect() {
   db = mysql.createConnection({
     host: process.env.DB_HOST,
@@ -43,7 +45,7 @@ function handleDisconnect() {
 
 handleDisconnect();
 
-// Webhook no TTN
+// ✅ TTN Webhook
 app.post('/ttn', (req, res) => {
   try {
     const devId = req.body.end_device_ids?.device_id;
@@ -91,7 +93,7 @@ app.post('/ttn', (req, res) => {
   }
 });
 
-// Galvenās lapas pēdējie dati
+// ✅ Jaunākie sensori
 app.get('/api/sensors', (req, res) => {
   const query = `
     SELECT * FROM sensor_data AS sd
@@ -127,7 +129,7 @@ app.get('/api/sensors', (req, res) => {
   });
 });
 
-// Vēsturiskie dati konkrētam sensoram
+// ✅ Vēsturiskie dati
 app.get('/api/sensor/:id', (req, res) => {
   const sensorId = req.params.id;
   const query = 'SELECT * FROM sensor_data WHERE sensor_id = ? ORDER BY timestamp DESC LIMIT 100';
@@ -141,7 +143,7 @@ app.get('/api/sensor/:id', (req, res) => {
   });
 });
 
-// Sensoru koordinātes priekš kartes
+// ✅ Sensoru kartes koordinātas
 app.get('/api/map-sensors', (req, res) => {
   const query = 'SELECT * FROM sensors';
 
@@ -154,7 +156,7 @@ app.get('/api/map-sensors', (req, res) => {
   });
 });
 
-// Saglabā koordinātes
+// ✅ Saglabā vai atjauno sensora koordinātas
 app.post('/api/update-location', (req, res) => {
   const { sensor_id, label, latitude, longitude } = req.body;
   const query = `
@@ -172,17 +174,46 @@ app.post('/api/update-location', (req, res) => {
   });
 });
 
-// Sensoru skatījums
+// ✅ Vēja dati no OpenWeatherMap
+app.get('/api/wind/:sensorId', (req, res) => {
+  const sensorId = req.params.sensorId;
+  const apiKey = process.env.OWM_API_KEY;
+
+  const query = 'SELECT latitude, longitude FROM sensors WHERE sensor_id = ? LIMIT 1';
+
+  db.query(query, [sensorId], async (err, results) => {
+    if (err || results.length === 0) {
+      console.error('❌ Sensor location error:', err || 'Not found');
+      return res.status(500).send('Sensor location not found');
+    }
+
+    const { latitude, longitude } = results[0];
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`;
+
+    try {
+      const response = await axios.get(url);
+      const wind = response.data.wind;
+      res.json({
+        speed: wind.speed,
+        deg: wind.deg,
+        gust: wind.gust || null
+      });
+    } catch (apiError) {
+      console.error('❌ OpenWeatherMap API error:', apiError.message);
+      res.status(500).send('Failed to fetch wind data');
+    }
+  });
+});
+
+// ✅ Lapas
 app.get('/sensor/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/sensor.html'));
 });
 
-// Admin lapa
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin.html'));
 });
 
-// Sākumlapas fallback
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
