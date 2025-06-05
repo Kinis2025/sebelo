@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: row; flex-wrap: wrap; }
+    body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-wrap: wrap; }
     .table-container { flex: 1 1 50%; padding: 15px; box-sizing: border-box; }
     .map-container { flex: 1 1 50%; height: 100vh; position: relative; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -100,6 +100,7 @@
 
       tableBody.innerHTML = '';
       sensorSelect.innerHTML = '';
+
       for (const id in sensors) {
         const d = sensors[id];
         const coord = coords[id];
@@ -156,21 +157,12 @@
     }
 
     async function loadWindData(sensorId) {
-      const coordRes = await fetch('/api/map-sensors');
-      const coords = await coordRes.json();
-      const coord = coords[sensorId];
-      if (!coord) return;
-
-      const apiKey = 'a50b25ff35ae650ef4db95bb3db5f4f1';
-      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${coord.lat}&lon=${coord.lng}&appid=${apiKey}&units=metric`;
-
       try {
-        const res = await fetch(url);
-        const json = await res.json();
-        const wind = json.wind;
-        if (wind && typeof wind.speed === 'number' && typeof wind.deg === 'number') {
-          windData.textContent = `${wind.speed.toFixed(1)} m/s ${degToCompass(wind.deg)}`;
-          windArrow.style.transform = `rotate(${wind.deg}deg)`;
+        const res = await fetch(`/api/wind/${sensorId}`);
+        const data = await res.json();
+        if (data.speed !== undefined && data.deg !== undefined) {
+          windData.textContent = `${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
+          windArrow.style.transform = `rotate(${data.deg}deg)`;
         } else {
           windData.textContent = 'No wind data';
         }
