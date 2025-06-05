@@ -158,7 +158,7 @@ app.get('/api/map-sensors', (req, res) => {
 app.post('/api/update-location', (req, res) => {
   const { sensor_id, label, latitude, longitude } = req.body;
   const query = `
-    INSERT INTO sensor_locations (sensor_id, label, latitude, longitude)
+    INSERT INTO sensors (sensor_id, label, latitude, longitude)
     VALUES (?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE label = VALUES(label), latitude = VALUES(latitude), longitude = VALUES(longitude)
   `;
