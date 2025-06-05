@@ -27,8 +27,8 @@ const db = mysql.createPool({
 // ✅ TTN Webhook
 app.post('/ttn', (req, res) => {
   try {
-    const devId = req.body.end_device_ids?.device_id;
-    const payload = req.body.uplink_message.decoded_payload?.decoded || req.body.uplink_message.decoded_payload || {};
+const devId = req.body.data?.end_device_ids?.device_id;
+const payload = req.body.data?.uplink_message?.decoded_payload?.decoded || req.body.data?.uplink_message?.decoded_payload || {};
     const timestamp = new Date().toISOString();
 
     const entry = {
