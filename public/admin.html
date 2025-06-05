@@ -54,10 +54,10 @@
 
       const body = JSON.stringify({ label, latitude, longitude });
 
-      const res = await fetch(`/api/sensor-location/${id}`, {
+      const res = await fetch('/api/update-location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body
+        body: JSON.stringify({ sensor_id: id, label, latitude, longitude })
       });
 
       if (res.ok) alert('Saglabāts!');
