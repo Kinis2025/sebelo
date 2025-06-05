@@ -10,30 +10,30 @@
     body {
       font-family: Arial, sans-serif;
       margin: 0;
-      padding: 0;
     }
 
     h1 {
       text-align: center;
-      margin: 10px 0;
+      margin: 12px 0;
     }
 
     .container {
       display: flex;
       flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px;
     }
 
     .table-container {
-      flex: 1 1 50%;
-      padding: 10px;
-      min-width: 300px;
+      flex: 1 1 55%;
+      min-width: 320px;
     }
 
     .map-container {
-      flex: 1 1 50%;
-      position: relative;
-      min-width: 300px;
+      flex: 1 1 40%;
+      min-width: 320px;
       height: 600px;
+      position: relative;
     }
 
     table {
@@ -89,10 +89,17 @@
         height: 400px;
       }
     }
+
+    .popup-id {
+      color: blue;
+      text-decoration: underline;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <h1>Sebelo Measurements</h1>
+
   <div class="container">
     <div class="table-container">
       <table>
@@ -114,6 +121,7 @@
         <tbody id="sensorTable"></tbody>
       </table>
     </div>
+
     <div class="map-container">
       <div id="map"></div>
       <div class="wind-box" id="windInfo">
@@ -132,6 +140,19 @@
       const dirs = ["Z", "ZZA", "ZA", "AZA", "A", "ADA", "DA", "DZA"];
       return dirs[Math.round(deg / 45) % 8];
     };
+
+    const getSmokeColor = val => {
+      if (val >= 50) return "red";
+      if (val >= 20) return "orange";
+      if (val >= 1) return "yellow";
+      return "green";
+    };
+
+    const createColoredIcon = color => L.divIcon({
+      className: "",
+      html: `<div style="width:16px;height:16px;background:${color};border-radius:50%;border:2px solid black;"></div>`,
+      iconSize: [16, 16]
+    });
 
     let map = L.map('map').setView([56.95, 24.1], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -158,13 +179,14 @@
         const dateStr = d.toLocaleDateString('lv-LV');
         const timeStr = d.toLocaleTimeString('lv-LV');
 
+        // Tabula
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><a href="/sensor/${sensorId}" target="_blank">${sensorId}</a></td>
           <td>${dateStr}</td>
           <td>${timeStr}</td>
           <td class="${data.gas1 == 100 ? 'green' : ''}">${data.gas1 ?? '-'}</td>
-          <td class="${data.gas2 >= 50 ? 'red' : data.gas2 >= 20 ? 'orange' : data.gas2 >= 1 ? 'yellow' : 'green'}">${data.gas2 ?? '-'}</td>
+          <td class="${getSmokeColor(data.gas2)}">${data.gas2 ?? '-'}</td>
           <td>${data.temperature ?? '-'}</td>
           <td>${data.humidity ?? '-'}</td>
           <td>${data.pressure ?? '-'}</td>
@@ -174,6 +196,7 @@
         `;
         tbody.appendChild(tr);
 
+        // Vējš
         const weather = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${loc.latitude}&lon=${loc.longitude}&appid=${OWM_KEY}&units=metric`).then(r => r.json());
         const windSpeed = weather.wind?.speed ?? 0;
         const windDeg = weather.wind?.deg ?? 0;
@@ -182,16 +205,22 @@
         windArrowEl.style.transform = `rotate(${windDeg}deg)`;
         windTextEl.textContent = `💨 ${windSpeed} m/s ${windTxt}`;
 
+        // Marķieris
+        const color = getSmokeColor(data.gas2);
+        const icon = createColoredIcon(color);
+
         const popup = `
-          <b>${sensorId}</b><br>
-          Smoke: ${data.gas2}%<br>
-          Temp: ${data.temperature}°C<br>
-          Humidity: ${data.humidity}%<br>
-          Pressure: ${data.pressure}<br>
-          Time: ${dateStr} ${timeStr}<br>
+          <div>
+            <span class="popup-id" onclick="window.location='/sensor/${sensorId}'">${sensorId}</span><br>
+            Smoke: ${data.gas2}%<br>
+            Temp: ${data.temperature}°C<br>
+            Humidity: ${data.humidity}%<br>
+            Pressure: ${data.pressure}<br>
+            Time: ${dateStr} ${timeStr}
+          </div>
         `;
 
-        L.marker([loc.latitude, loc.longitude]).addTo(map).bindPopup(popup);
+        L.marker([loc.latitude, loc.longitude], { icon }).addTo(map).bindPopup(popup);
       }
     }
 
