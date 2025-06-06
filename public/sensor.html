@@ -8,85 +8,94 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; padding: 0; }
-    h1 { text-align: center; margin-bottom: 20px; }
-
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { padding: 6px; border: 1px solid #aaa; text-align: center; }
-
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    th, td {
+      padding: 6px;
+      border: 1px solid #aaa;
+      text-align: center;
+    }
     .green { background-color: #ccffcc; }
     .yellow { background-color: #ffffcc; }
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
-
-    #sensorMap {
-      width: 100%;
-      height: 400px;
-      margin-top: 30px;
-      border: 1px solid #aaa;
-      position: relative;
-    }
-
-    .wind-info {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: white;
-      padding: 6px 10px;
-      border-radius: 6px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.2);
-      font-size: 14px;
-      z-index: 1000;
+    .map-weather-wrapper {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      gap: 20px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
     }
-
+    #sensorMap {
+      flex: 1 1 60%;
+      height: 300px;
+      border: 1px solid #aaa;
+    }
+    .weather-info {
+      flex: 1 1 35%;
+      background: #f7f7f7;
+      border: 1px solid #aaa;
+      padding: 10px;
+      border-radius: 6px;
+    }
     .wind-arrow-svg {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       transform-origin: center;
       display: inline-block;
+      vertical-align: middle;
     }
-
     .chart-row {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       gap: 20px;
     }
-
     .chart-container {
       flex: 1 1 22%;
       min-width: 240px;
     }
-
     canvas {
       width: 100% !important;
       height: auto !important;
     }
-
     @media (max-width: 768px) {
-      .chart-container { flex: 1 1 100%; }
+      .chart-container, .map-weather-wrapper {
+        flex-direction: column;
+      }
+      #sensorMap, .weather-info {
+        flex: 1 1 100%;
+      }
     }
   </style>
 </head>
 <body>
   <h1 id="header">Sensor Data</h1>
 
-  <div class="chart-row">
-    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
-    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
-  </div>
-
-  <div id="sensorMap">
-    <div class="wind-info">
+  <div class="map-weather-wrapper">
+    <div id="sensorMap"></div>
+    <div class="weather-info">
+      <h3>Weather</h3>
+      <label><strong>🌬️ Wind:</strong> <span id="windData">--</span></label><br>
       <svg id="windArrow" class="wind-arrow-svg" viewBox="0 0 100 100">
         <polygon points="50,10 90,90 50,70 10,90" fill="black" />
       </svg>
-      <span id="windText">Loading...</span>
+      <div><strong>🌡️ Temp:</strong> <span id="owmTemp">--</span> °C</div>
+      <div>
+        <strong>🌥️ Weather:</strong>
+        <img id="owmIcon" src="" alt="Weather Icon" style="width: 32px; height: 32px; vertical-align: middle;">
+        <span id="owmDesc">--</span>
+      </div>
     </div>
   </div>
 
@@ -107,12 +116,22 @@
     <tbody id="dataTable"></tbody>
   </table>
 
+  <div class="chart-row">
+    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
+  </div>
+
   <script>
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
     document.getElementById("header").textContent = `Sensor: ${sensorId}`;
-
-    let latestTimestamp = null;
-    let map, marker;
+    let map, marker, latestTimestamp = null;
+    const windData = document.getElementById('windData');
+    const windArrow = document.getElementById('windArrow');
+    const owmTemp = document.getElementById('owmTemp');
+    const owmDesc = document.getElementById('owmDesc');
+    const owmIcon = document.getElementById('owmIcon');
 
     function getColor(smoke) {
       if (smoke >= 50) return 'red';
@@ -137,7 +156,6 @@
       renderTable(data);
       renderCharts(data);
       renderMap(data[0]);
-      loadWindData(); // <-- Ielādē arī vēju un temperatūru
     }
 
     function renderTable(data) {
@@ -181,7 +199,13 @@
         type: 'line',
         data: {
           labels,
-          datasets: [{ label, data, borderColor: color, backgroundColor: color, tension: 0.2, fill: false }]
+          datasets: [{
+            label, data,
+            borderColor: color,
+            backgroundColor: color,
+            tension: 0.2,
+            fill: false
+          }]
         },
         options: {
           responsive: true,
@@ -216,6 +240,25 @@
 
       if (marker) marker.remove();
       marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
+
+      loadWeather(location.latitude, location.longitude);
+    }
+
+    async function loadWeather(lat, lon) {
+      try {
+        const res = await fetch(`/api/wind/${sensorId}`);
+        const data = await res.json();
+        windData.textContent = `${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
+        windArrow.style.transform = `rotate(${data.deg}deg)`;
+        owmTemp.textContent = data.temp !== undefined ? data.temp.toFixed(1) : '--';
+        owmDesc.textContent = data.description || '--';
+        owmIcon.src = data.icon ? `https://openweathermap.org/img/wn/${data.icon}@2x.png` : '';
+      } catch (e) {
+        windData.textContent = 'API error';
+        owmTemp.textContent = '--';
+        owmDesc.textContent = '--';
+        owmIcon.src = '';
+      }
     }
 
     function degToCompass(num) {
@@ -223,23 +266,6 @@
       const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
       return arr[val % 16];
-    }
-
-    async function loadWindData() {
-      try {
-        const res = await fetch(`/api/wind/${sensorId}`);
-        const data = await res.json();
-        if (data && typeof data.speed === 'number' && typeof data.deg === 'number') {
-          const tempStr = data.temp !== undefined ? `🌡 ${data.temp.toFixed(1)} °C | ` : '';
-          const windStr = `💨 ${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
-          document.getElementById('windText').textContent = tempStr + windStr;
-          document.getElementById('windArrow').style.transform = `rotate(${data.deg}deg)`;
-        } else {
-          document.getElementById('windText').textContent = 'No wind data';
-        }
-      } catch (e) {
-        document.getElementById('windText').textContent = 'API error';
-      }
     }
 
     window.onload = () => {
