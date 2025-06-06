@@ -11,54 +11,17 @@
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
+      padding: 0;
     }
     h1 {
       text-align: center;
       margin-bottom: 20px;
     }
 
-    .chart-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .chart-container {
-      flex: 1 1 22%;
-      min-width: 240px;
-    }
-
-    .map-weather-wrapper {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    #sensorMap {
-      flex: 1 1 65%;
-      height: 300px;
-      border: 1px solid #aaa;
-    }
-    .weather-info {
-      flex: 1 1 30%;
-      background: #f7f7f7;
-      border: 1px solid #aaa;
-      padding: 10px;
-      border-radius: 6px;
-    }
-    .wind-arrow-svg {
-      width: 24px;
-      height: 24px;
-      transform-origin: center;
-      display: inline-block;
-      vertical-align: middle;
-    }
-
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 30px;
+      margin-bottom: 20px;
     }
     th, td {
       padding: 6px;
@@ -71,12 +34,54 @@
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
 
+    .layout-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    #sensorMap {
+      flex: 1 1 70%;
+      height: 300px;
+      border: 1px solid #aaa;
+    }
+
+    .weather-box {
+      flex: 1 1 28%;
+      background: #f9f9f9;
+      padding: 10px;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .chart-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .chart-container {
+      flex: 1 1 30%;
+      min-width: 240px;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+
     @media (max-width: 768px) {
-      .chart-container, .map-weather-wrapper {
+      .chart-container, .layout-row {
+        flex: 1 1 100%;
         flex-direction: column;
       }
-      #sensorMap, .weather-info {
-        flex: 1 1 100%;
+      #sensorMap {
+        height: 250px;
       }
     }
   </style>
@@ -84,33 +89,21 @@
 <body>
   <h1 id="header">Sensor Data</h1>
 
-  <!-- CHARTS -->
   <div class="chart-row">
     <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
     <div class="chart-container"><canvas id="humidityChart"></canvas></div>
     <div class="chart-container"><canvas id="batteryChart"></canvas></div>
   </div>
 
-  <!-- MAP + WEATHER -->
-  <div class="map-weather-wrapper">
+  <div class="layout-row">
     <div id="sensorMap"></div>
-    <div class="weather-info">
-      <h3>Weather</h3>
-      <label><strong>🌬️ Wind:</strong> <span id="windData">--</span></label><br>
-      <svg id="windArrow" class="wind-arrow-svg" viewBox="0 0 100 100">
-        <polygon points="50,10 90,90 50,70 10,90" fill="black" />
-      </svg>
-      <div><strong>🌡️ Temp:</strong> <span id="owmTemp">--</span> °C</div>
-      <div>
-        <strong>🌥️ Weather:</strong>
-        <img id="owmIcon" src="" alt="Weather Icon" style="width: 32px; height: 32px; vertical-align: middle;">
-        <span id="owmDesc">--</span>
-      </div>
+    <div class="weather-box">
+      <strong>🌬️ Wind:</strong> <span id="windData">--</span><br>
+      <strong>🌡️ Temp:</strong> <span id="owmTemp">--</span> °C<br>
+      <strong>🌥️ Weather:</strong> <span id="owmDesc">--</span>
     </div>
   </div>
 
-  <!-- TABLE -->
   <table>
     <thead>
       <tr>
@@ -118,7 +111,7 @@
         <th>Time</th>
         <th>Normal (%)</th>
         <th>Smoke (%)</th>
-        <th>Temp (°C)</th>
+        <th style="display:none;">Temp (°C)</th>
         <th>Humidity (%)</th>
         <th>Pressure (hPa)</th>
         <th>Battery</th>
@@ -131,13 +124,13 @@
   <script>
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
     document.getElementById("header").textContent = `Sensor: ${sensorId}`;
-    let map, marker, latestTimestamp = null;
+
+    let latestTimestamp = null;
+    let map, marker;
 
     const windData = document.getElementById('windData');
-    const windArrow = document.getElementById('windArrow');
     const owmTemp = document.getElementById('owmTemp');
     const owmDesc = document.getElementById('owmDesc');
-    const owmIcon = document.getElementById('owmIcon');
 
     function getColor(smoke) {
       if (smoke >= 50) return 'red';
@@ -175,7 +168,7 @@
           <td>${d.toLocaleTimeString('lv-LV')}</td>
           <td class="${row.gas1 == 100 ? 'green' : ''}">${row.gas1 ?? '-'}</td>
           <td class="${getColor(row.gas2)}">${row.gas2 ?? '-'}</td>
-          <td>${row.temperature ?? '-'}</td>
+          <td style="display:none;">${row.temperature ?? '-'}</td>
           <td>${row.humidity ?? '-'}</td>
           <td>${row.pressure ?? '-'}</td>
           <td class="${row.supercap_voltage > 2000 ? 'green' : row.supercap_voltage > 1000 ? 'yellow' : 'red'}">${row.supercap_voltage ?? '-'}</td>
@@ -188,12 +181,10 @@
     function renderCharts(data) {
       const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString('lv-LV')).reverse();
       const smoke = data.map(d => d.gas2 ?? null).reverse();
-      const temp = data.map(d => d.temperature ?? null).reverse();
       const hum = data.map(d => d.humidity ?? null).reverse();
       const batt = data.map(d => d.supercap_voltage ?? null).reverse();
 
       drawChart('smokeChart', 'Smoke (%)', labels, smoke, 'rgba(100,100,255,0.6)');
-      drawChart('temperatureChart', 'Temp (°C)', labels, temp, 'rgba(255,99,132,0.6)');
       drawChart('humidityChart', 'Humidity (%)', labels, hum, 'rgba(54,162,235,0.6)');
       drawChart('batteryChart', 'Battery (mV)', labels, batt, 'rgba(255,206,86,0.6)');
     }
@@ -247,23 +238,34 @@
       if (marker) marker.remove();
       marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
 
-      loadWeather();
+      loadWeatherData(sensorId);
     }
 
-    async function loadWeather() {
+    async function loadWeatherData(sensorId) {
       try {
         const res = await fetch(`/api/wind/${sensorId}`);
         const data = await res.json();
-        windData.textContent = `${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
-        windArrow.style.transform = `rotate(${data.deg}deg)`;
-        owmTemp.textContent = data.temp !== undefined ? data.temp.toFixed(1) : '--';
-        owmDesc.textContent = data.description || '--';
-        owmIcon.src = data.icon ? `https://openweathermap.org/img/wn/${data.icon}@2x.png` : '';
+        if (data.speed !== undefined && data.deg !== undefined) {
+          windData.textContent = `${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
+        } else {
+          windData.textContent = 'No wind data';
+        }
+
+        if (data.temp !== undefined) {
+          owmTemp.textContent = data.temp.toFixed(1);
+        } else {
+          owmTemp.textContent = '--';
+        }
+
+        if (data.description) {
+          owmDesc.textContent = data.description;
+        } else {
+          owmDesc.textContent = '--';
+        }
       } catch (e) {
         windData.textContent = 'API error';
         owmTemp.textContent = '--';
         owmDesc.textContent = '--';
-        owmIcon.src = '';
       }
     }
 
