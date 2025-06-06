@@ -16,33 +16,32 @@
       text-align: center;
       margin-bottom: 20px;
     }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 20px;
-    }
-    th, td {
-      padding: 6px;
-      border: 1px solid #aaa;
-      text-align: center;
-    }
-    .green { background-color: #ccffcc; }
-    .yellow { background-color: #ffffcc; }
-    .orange { background-color: #ffdd99; }
-    .red { background-color: #ffcccc; }
-    .map-weather-wrapper {
+
+    .chart-row {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
       gap: 20px;
       margin-bottom: 30px;
+    }
+    .chart-container {
+      flex: 1 1 22%;
+      min-width: 240px;
+    }
+
+    .map-weather-wrapper {
+      display: flex;
       flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 30px;
     }
     #sensorMap {
-      flex: 1 1 60%;
+      flex: 1 1 65%;
       height: 300px;
       border: 1px solid #aaa;
     }
     .weather-info {
-      flex: 1 1 35%;
+      flex: 1 1 30%;
       background: #f7f7f7;
       border: 1px solid #aaa;
       padding: 10px;
@@ -55,20 +54,23 @@
       display: inline-block;
       vertical-align: middle;
     }
-    .chart-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 20px;
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 30px;
     }
-    .chart-container {
-      flex: 1 1 22%;
-      min-width: 240px;
+    th, td {
+      padding: 6px;
+      border: 1px solid #aaa;
+      text-align: center;
     }
-    canvas {
-      width: 100% !important;
-      height: auto !important;
-    }
+
+    .green { background-color: #ccffcc; }
+    .yellow { background-color: #ffffcc; }
+    .orange { background-color: #ffdd99; }
+    .red { background-color: #ffcccc; }
+
     @media (max-width: 768px) {
       .chart-container, .map-weather-wrapper {
         flex-direction: column;
@@ -82,6 +84,15 @@
 <body>
   <h1 id="header">Sensor Data</h1>
 
+  <!-- CHARTS -->
+  <div class="chart-row">
+    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
+  </div>
+
+  <!-- MAP + WEATHER -->
   <div class="map-weather-wrapper">
     <div id="sensorMap"></div>
     <div class="weather-info">
@@ -99,6 +110,7 @@
     </div>
   </div>
 
+  <!-- TABLE -->
   <table>
     <thead>
       <tr>
@@ -116,17 +128,11 @@
     <tbody id="dataTable"></tbody>
   </table>
 
-  <div class="chart-row">
-    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
-    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
-  </div>
-
   <script>
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
     document.getElementById("header").textContent = `Sensor: ${sensorId}`;
     let map, marker, latestTimestamp = null;
+
     const windData = document.getElementById('windData');
     const windArrow = document.getElementById('windArrow');
     const owmTemp = document.getElementById('owmTemp');
@@ -241,10 +247,10 @@
       if (marker) marker.remove();
       marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
 
-      loadWeather(location.latitude, location.longitude);
+      loadWeather();
     }
 
-    async function loadWeather(lat, lon) {
+    async function loadWeather() {
       try {
         const res = await fetch(`/api/wind/${sensorId}`);
         const data = await res.json();
