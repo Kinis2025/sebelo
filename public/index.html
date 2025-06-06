@@ -35,6 +35,12 @@
       display: inline-block;
       vertical-align: middle;
     }
+    .weather-icon {
+      width: 30px;
+      height: 30px;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
     @media (max-width: 768px) {
       .table-container, .map-container {
         flex: 1 1 100%;
@@ -75,7 +81,10 @@
         </svg>
         <span id="windData">--</span>
         <div><strong>🌡️ Temp:</strong> <span id="owmTemp">--</span> °C</div>
-        <div><strong>🌥️ Weather:</strong> <span id="owmDesc">--</span></div>
+        <div>
+          <img id="owmIcon" class="weather-icon" src="" alt="" style="display:none;" />
+          <span id="owmDesc">--</span>
+        </div>
       </div>
     </div>
     <div id="map"></div>
@@ -89,6 +98,7 @@
     const windData = document.getElementById('windData');
     const owmTemp = document.getElementById('owmTemp');
     const owmDesc = document.getElementById('owmDesc');
+    const owmIcon = document.getElementById('owmIcon');
 
     let map = L.map('map').setView([56.95, 24.1], 8);
     let markers = {};
@@ -129,21 +139,22 @@
         tableBody.appendChild(row);
 
         // Marker
-const coord = coords[id];
-if (coord && coord.latitude && coord.longitude) {
-  if (markers[id]) map.removeLayer(markers[id]);
-  const color = getSmokeClass(d.gas2);
-  const icon = L.divIcon({ html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>` });
-  const popup = `<strong><a href="/sensor/${id}" target="_blank">${id}</a></strong><br>
-    Smoke: ${d.gas2 ?? '-'}%<br>
-    Temp: ${d.temperature ?? '-'} °C<br>
-    Humidity: ${d.humidity ?? '-'}%<br>
-    Pressure: ${d.pressure ?? '-'} hPa<br>
-    Time: ${dateStr} ${timeStr}`;
-  const marker = L.marker([coord.latitude, coord.longitude], { icon }).bindPopup(popup);
-  marker.addTo(map);
-  markers[id] = marker;
-}
+        if (coord && coord.latitude && coord.longitude) {
+          if (markers[id]) map.removeLayer(markers[id]);
+          const color = getSmokeClass(d.gas2);
+          const icon = L.divIcon({
+            html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>`
+          });
+          const popup = `<strong><a href="/sensor/${id}" target="_blank">${id}</a></strong><br>
+            Smoke: ${d.gas2 ?? '-'}%<br>
+            Temp: ${d.temperature ?? '-'} °C<br>
+            Humidity: ${d.humidity ?? '-'}%<br>
+            Pressure: ${d.pressure ?? '-'} hPa<br>
+            Time: ${dateStr} ${timeStr}`;
+          const marker = L.marker([coord.latitude, coord.longitude], { icon }).bindPopup(popup);
+          marker.addTo(map);
+          markers[id] = marker;
+        }
 
         // Dropdown
         const opt = document.createElement('option');
@@ -176,10 +187,18 @@ if (coord && coord.latitude && coord.longitude) {
         owmTemp.textContent = data.temp !== undefined ? data.temp.toFixed(1) : '--';
         owmDesc.textContent = data.description || '--';
 
+        if (data.icon) {
+          owmIcon.src = `https://openweathermap.org/img/wn/${data.icon}@2x.png`;
+          owmIcon.style.display = 'inline-block';
+        } else {
+          owmIcon.style.display = 'none';
+        }
+
       } catch (e) {
         windData.textContent = 'API error';
         owmTemp.textContent = '--';
         owmDesc.textContent = '--';
+        owmIcon.style.display = 'none';
       }
     }
 
