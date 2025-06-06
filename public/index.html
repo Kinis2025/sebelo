@@ -175,7 +175,11 @@
         } else {
           owmTemp.textContent = '--';
         }
-
+if (data.description) {
+  owmDesc.textContent = data.description;
+} else {
+  owmDesc.textContent = '--';
+}
       } catch (e) {
         windData.textContent = 'API error';
         owmTemp.textContent = '--';
