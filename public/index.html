@@ -42,7 +42,7 @@
       margin-right: 5px;
     }
     @media (max-width: 768px) {
-      .table-container, .map-container {
+      .-container, .map-container {
         flex: 1 1 100%;
         height: auto;
       }
@@ -51,9 +51,9 @@
   </style>
 </head>
 <body>
-  <div class="table-container">
+  <div class="-container">
     <h2>Sensors</h2>
-    <table>
+    <>
       <thead>
         <tr>
           <th>Sensor ID</th>
@@ -67,8 +67,8 @@
           <th>Change coordinates</th>
         </tr>
       </thead>
-      <tbody id="sensorTable"></tbody>
-    </table>
+      <tbody id="sensor"></tbody>
+    </>
   </div>
 
   <div class="map-container">
@@ -92,7 +92,7 @@
 
   <script src="https://unpkg.com/leaflet"></script>
   <script>
-    const tableBody = document.getElementById('sensorTable');
+    const Body = document.getElementById('sensor');
     const sensorSelect = document.getElementById('sensorSelect');
     const windArrow = document.getElementById('windArrow');
     const windData = document.getElementById('windData');
@@ -118,6 +118,10 @@
 
       for (const id in sensors) {
         const d = sensors[id];
+          // Skipo, ja dati nav pieejami (tukša ziņa no TTN)
+  if (!d.gas1 && !d.gas2 && !d.temperature && !d.humidity && !d.pressure && !d.supercap_voltage) {
+    continue;
+  }
         const coord = coords.find(c => c.sensor_id === id);
         const t = new Date(d.time);
         const dateStr = t.toLocaleDateString('en-GB');
