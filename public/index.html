@@ -129,7 +129,7 @@
         tableBody.appendChild(row);
 
         // Marker
-       if (coord && coord.latitude && coord.longitude) {
+      if (coord && coord.latitude && coord.longitude) {
           if (markers[id]) map.removeLayer(markers[id]);
           const color = getSmokeClass(d.gas2);
           const icon = L.divIcon({ html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>` });
