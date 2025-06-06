@@ -129,7 +129,7 @@
         tableBody.appendChild(row);
 
         // Marker
-        if (coord && coord.lat && coord.lng) {
+       if (coord && coord.latitude && coord.longitude) {
           if (markers[id]) map.removeLayer(markers[id]);
           const color = getSmokeClass(d.gas2);
           const icon = L.divIcon({ html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>` });
@@ -139,7 +139,7 @@
             Humidity: ${d.humidity ?? '-'}%<br>
             Pressure: ${d.pressure ?? '-'} hPa<br>
             Time: ${dateStr} ${timeStr}`;
-          const marker = L.marker([coord.lat, coord.lng], { icon }).bindPopup(popup);
+          const marker = L.marker([coord.latitude, coord.longitude], { icon }).bindPopup(popup);
           marker.addTo(map);
           markers[id] = marker;
         }
