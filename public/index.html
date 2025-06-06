@@ -118,10 +118,6 @@
 
       for (const id in sensors) {
         const d = sensors[id];
-          // Skipo, ja dati nav pieejami (tukša ziņa no TTN)
-  if (!d.gas1 && !d.gas2 && !d.temperature && !d.humidity && !d.pressure && !d.supercap_voltage) {
-    continue;
-  }
         const coord = coords.find(c => c.sensor_id === id);
         const t = new Date(d.time);
         const dateStr = t.toLocaleDateString('en-GB');
