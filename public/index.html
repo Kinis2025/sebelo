@@ -96,8 +96,11 @@
         fetch('/api/map-sensors')
       ]);
       const sensors = await sensorRes.json();
-      const coords = await coordRes.json();
-
+      const rawCoords = await coordRes.json();
+const coords = {};
+rawCoords.forEach(c => {
+  coords[c.sensor_id] = c;
+});
       tableBody.innerHTML = '';
       sensorSelect.innerHTML = '';
 
