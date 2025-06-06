@@ -118,7 +118,7 @@
 
       for (const id in sensors) {
         const d = sensors[id];
-        const coord = coords[id];
+        const coord = coords.find(c => c.sensor_id === id);
         const t = new Date(d.time);
         const dateStr = t.toLocaleDateString('en-GB');
         const timeStr = t.toLocaleTimeString('en-GB');
