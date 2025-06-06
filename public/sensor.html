@@ -44,10 +44,11 @@
     }
 
     #sensorMap {
-      flex: 1 1 70%;
-      height: 300px;
-      border: 1px solid #aaa;
-    }
+     flex: 1 1 70%;
+  height: 300px;
+  min-height: 250px; /* jaunums — palīdz mobilajos */
+  border: 1px solid #aaa;
+}
 
     .weather-box {
       flex: 1 1 28%;
@@ -211,35 +212,41 @@
       });
     }
 
-    async function renderMap(latest) {
-      const locRes = await fetch('/api/map-sensors');
-      const sensors = await locRes.json();
-      const location = sensors.find(s => s.sensor_id === sensorId);
-      if (!location?.latitude || !location?.longitude) return;
+   async function renderMap(latest) {
+  const locRes = await fetch('/api/map-sensors');
+  const sensors = await locRes.json();
+  const location = sensors.find(s => s.sensor_id === sensorId);
+  if (!location?.latitude || !location?.longitude) return;
 
-      const color = getColor(latest.gas2);
-      const icon = createIcon(color);
-      const popup = `
-        <b>${sensorId}</b><br>
-        Smoke: ${latest.gas2 ?? '-'}%<br>
-        Temp: ${latest.temperature ?? '-'}°C<br>
-        Humidity: ${latest.humidity ?? '-'}%<br>
-        Pressure: ${latest.pressure ?? '-'}<br>
-        Time: ${new Date(latest.timestamp).toLocaleString('lv-LV')}
-      `;
+  const color = getColor(latest.gas2);
+  const icon = createIcon(color);
+  const popup = `
+    <b>${sensorId}</b><br>
+    Smoke: ${latest.gas2 ?? '-'}%<br>
+    Temp: ${latest.temperature ?? '-'}°C<br>
+    Humidity: ${latest.humidity ?? '-'}%<br>
+    Pressure: ${latest.pressure ?? '-'}<br>
+    Time: ${new Date(latest.timestamp).toLocaleString('lv-LV')}
+  `;
 
-      if (!map) {
-        map = L.map('sensorMap').setView([location.latitude, location.longitude], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-      }
+  if (!map) {
+    map = L.map('sensorMap').setView([location.latitude, location.longitude], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-      if (marker) marker.remove();
-      marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
+    // 🛠️ Šis ir būtiski mobilajiem
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+  }
 
-      loadWeatherData(sensorId);
-    }
+  if (marker) marker.remove();
+  marker = L.marker([location.latitude, location.longitude], { icon }).addTo(map).bindPopup(popup).openPopup();
+
+  loadWeatherData(sensorId);
+}
+
 
     async function loadWeatherData(sensorId) {
       try {
