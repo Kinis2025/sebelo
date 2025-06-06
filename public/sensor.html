@@ -18,10 +18,30 @@
       margin-bottom: 20px;
     }
 
+    .chart-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .chart-container {
+      flex: 1 1 22%;
+      min-width: 240px;
+    }
+
+    #sensorMap {
+      width: 100%;
+      height: 300px;
+      margin-bottom: 30px;
+      border: 1px solid #aaa;
+    }
+
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-bottom: 20px;
+      margin-top: 10px;
     }
     th, td {
       padding: 6px;
@@ -34,30 +54,6 @@
     .orange { background-color: #ffdd99; }
     .red { background-color: #ffcccc; }
 
-    #sensorMap {
-      width: 100%;
-      height: 300px;
-      margin-bottom: 30px;
-      border: 1px solid #aaa;
-    }
-
-    .chart-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 20px;
-    }
-
-    .chart-container {
-      flex: 1 1 22%;
-      min-width: 240px;
-    }
-
-    canvas {
-      width: 100% !important;
-      height: auto !important;
-    }
-
     @media (max-width: 768px) {
       .chart-container {
         flex: 1 1 100%;
@@ -68,6 +64,18 @@
 <body>
   <h1 id="header">Sensor Data</h1>
 
+  <!-- ✅ Charts -->
+  <div class="chart-row">
+    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
+    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
+    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
+  </div>
+
+  <!-- ✅ Map -->
+  <div id="sensorMap"></div>
+
+  <!-- ✅ Data table -->
   <table>
     <thead>
       <tr>
@@ -84,15 +92,6 @@
     </thead>
     <tbody id="dataTable"></tbody>
   </table>
-
-  <div id="sensorMap"></div>
-
-  <div class="chart-row">
-    <div class="chart-container"><canvas id="smokeChart"></canvas></div>
-    <div class="chart-container"><canvas id="temperatureChart"></canvas></div>
-    <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-    <div class="chart-container"><canvas id="batteryChart"></canvas></div>
-  </div>
 
   <script>
     const sensorId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/').pop();
