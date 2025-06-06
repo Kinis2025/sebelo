@@ -75,7 +75,11 @@
         </svg>
         <span id="windData">--</span>
         <div><strong>🌡️ Temp:</strong> <span id="owmTemp">--</span> °C</div>
-<div><strong>🌥️ Weather:</strong> <span id="owmDesc">--</span></div>
+        <div>
+          <strong>🌥️ Weather:</strong>
+          <img id="owmIcon" src="" alt="Weather Icon" style="width: 32px; height: 32px; vertical-align: middle;">
+          <span id="owmDesc">--</span>
+        </div>
       </div>
     </div>
     <div id="map"></div>
@@ -88,6 +92,9 @@
     const windArrow = document.getElementById('windArrow');
     const windData = document.getElementById('windData');
     const owmTemp = document.getElementById('owmTemp');
+    const owmDesc = document.getElementById('owmDesc');
+    const owmIcon = document.getElementById('owmIcon');
+
     let map = L.map('map').setView([56.95, 24.1], 8);
     let markers = {};
 
@@ -106,12 +113,12 @@
 
       for (const id in sensors) {
         const d = sensors[id];
-        const coord = coords[id];
+        const coord = coords.find(c => c.sensor_id === id);
         const t = new Date(d.time);
         const dateStr = t.toLocaleDateString('en-GB');
         const timeStr = t.toLocaleTimeString('en-GB');
 
-        // Table
+        // Table row
         const row = document.createElement('tr');
         row.innerHTML = `
           <td><a href="/sensor/${id}" target="_blank">${id}</a></td>
@@ -127,7 +134,7 @@
         tableBody.appendChild(row);
 
         // Marker
-        if (coord && coord.lat && coord.lng) {
+        if (coord && coord.latitude && coord.longitude) {
           if (markers[id]) map.removeLayer(markers[id]);
           const color = getSmokeClass(d.gas2);
           const icon = L.divIcon({ html: `<div class="${color}" style="width:14px;height:14px;border-radius:50%;border:1px solid #555;"></div>` });
@@ -137,7 +144,7 @@
             Humidity: ${d.humidity ?? '-'}%<br>
             Pressure: ${d.pressure ?? '-'} hPa<br>
             Time: ${dateStr} ${timeStr}`;
-          const marker = L.marker([coord.lat, coord.lng], { icon }).bindPopup(popup);
+          const marker = L.marker([coord.latitude, coord.longitude], { icon }).bindPopup(popup);
           marker.addTo(map);
           markers[id] = marker;
         }
@@ -163,6 +170,7 @@
       try {
         const res = await fetch(`/api/wind/${sensorId}`);
         const data = await res.json();
+
         if (data.speed !== undefined && data.deg !== undefined) {
           windData.textContent = `${data.speed.toFixed(1)} m/s ${degToCompass(data.deg)}`;
           windArrow.style.transform = `rotate(${data.deg}deg)`;
@@ -170,19 +178,14 @@
           windData.textContent = 'No wind data';
         }
 
-        if (data.temp !== undefined) {
-          owmTemp.textContent = data.temp.toFixed(1);
-        } else {
-          owmTemp.textContent = '--';
-        }
-if (data.description) {
-  owmDesc.textContent = data.description;
-} else {
-  owmDesc.textContent = '--';
-}
+        owmTemp.textContent = data.temp !== undefined ? data.temp.toFixed(1) : '--';
+        owmDesc.textContent = data.description || '--';
+        owmIcon.src = data.icon ? `https://openweathermap.org/img/wn/${data.icon}@2x.png` : '';
       } catch (e) {
         windData.textContent = 'API error';
         owmTemp.textContent = '--';
+        owmDesc.textContent = '--';
+        owmIcon.src = '';
       }
     }
 
