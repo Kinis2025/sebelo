@@ -186,7 +186,8 @@ app.get('/api/wind/:sensorId', async (req, res) => {
       deg: wind.deg,
       gust: wind.gust || null,
       temp: response.data.main?.temp || null,
-      description: response.data.weather?.[0]?.description || null
+      description: response.data.weather?.[0]?.description || null,
+      icon: response.data.weather?.[0]?.icon || null
     });
   } catch (err) {
     console.error('❌ OpenWeatherMap API error:', err.message);
